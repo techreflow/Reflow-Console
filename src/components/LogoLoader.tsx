@@ -21,7 +21,7 @@ export default function LogoLoader({ text = "Loading console..." }: LogoLoaderPr
             ],
           }}
           transition={{
-            duration: 2.4,
+            duration: 1.2,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -31,7 +31,7 @@ export default function LogoLoader({ text = "Loading console..." }: LogoLoaderPr
           className="absolute -inset-4 rounded-full border border-border-subtle bg-surface"
           animate={{ rotate: 360 }}
           transition={{
-            duration: 10,
+            duration: 5,
             repeat: Infinity,
             ease: "linear",
           }}
@@ -44,7 +44,7 @@ export default function LogoLoader({ text = "Loading console..." }: LogoLoaderPr
             opacity: [0.3, 0.5, 0.3],
           }}
           transition={{
-            duration: 2.4,
+            duration: 1.2,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -86,9 +86,9 @@ export default function LogoLoader({ text = "Loading console..." }: LogoLoaderPr
                 opacity: [0.4, 1, 0.4],
               }}
               transition={{
-                duration: 1.1,
+                duration: 0.8,
                 repeat: Infinity,
-                delay: i * 0.2,
+                delay: i * 0.15,
                 ease: "easeInOut",
               }}
             />
@@ -108,7 +108,7 @@ export default function LogoLoader({ text = "Loading console..." }: LogoLoaderPr
             x: ["-100%", "100%"],
           }}
           transition={{
-            duration: 1.6,
+            duration: 0.8,
             repeat: Infinity,
             ease: "easeInOut",
           }}

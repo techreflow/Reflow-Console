@@ -122,27 +122,31 @@ function DashboardContent() {
 
         // Collect all devices with their serial numbers
         const allDeviceSerials: string[] = [];
-        for (const p of projectList) {
+
+        // Fetch devices for all projects concurrently to fix N+1 latency
+        const devicePromises = projectList.map(async (p) => {
           const pId = p.id || p._id || "";
+          if (!pId) return [];
           try {
             const res = await getProjectDevices(pId);
-            const devs = res?.data?.devices || res?.devices || [];
-            devs.forEach((d: Device) => {
-              const serial = d.serialNumber || d.serial_no || d.id || d._id;
-              if (serial) allDeviceSerials.push(serial);
-            });
+            return res?.data?.devices || res?.devices || [];
           } catch {
-            // fall through, use devices in project
+            return p.devices || []; // fallback to nested
           }
-        }
+        });
 
-        // Also pick up devices nested in the project list itself (fallback)
-        projectList.forEach((p) => {
-          (p.devices || []).forEach((d) => {
-            const s = d.serialNumber || d.serial_no || d.id || d._id;
-            if (s && !allDeviceSerials.includes(s)) allDeviceSerials.push(s);
+        const projectDevices = await Promise.all(devicePromises);
+
+        projectList.forEach((p, idx) => {
+          const devs = projectDevices[idx];
+          p.devices = devs.length > 0 ? devs : p.devices || [];
+          (p.devices || []).forEach((d: Device) => {
+            const serial = d.serialNumber || d.serial_no || d.id || d._id;
+            if (serial && !allDeviceSerials.includes(serial)) allDeviceSerials.push(serial);
           });
         });
+
+        setProjects(projectList);
 
         const totalDevices = allDeviceSerials.length;
 
@@ -156,7 +160,11 @@ function DashboardContent() {
         });
         setError(null);
 
-        // ── MQTT online check ─────────────────────────────────
+        // Turn off the loading spinner NOW before the slow MQTT checks
+        setLoading(false);
+        clearTimeout(timeoutId);
+
+        // ── MQTT online check (Non-blocking) ─────────────────────────────────
         if (allDeviceSerials.length > 0) {
           setMqttChecking(true);
           const results = await Promise.allSettled(
@@ -172,9 +180,8 @@ function DashboardContent() {
         console.error("Error fetching data:", err);
         setError("Could not connect to backend. Please check your connection.");
         setProjects([]);
-      } finally {
-        clearTimeout(timeoutId);
         setLoading(false);
+        clearTimeout(timeoutId);
       }
     }
     fetchData();
