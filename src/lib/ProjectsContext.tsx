@@ -87,6 +87,26 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                 }
             }
 
+            // Normalize a raw device object:
+            // 1. Unwrap { device: {...} } wrapper if present
+            // 2. Ensure serial_no / serialNumber are at top level
+            const normalizeDevice = (raw: any, projectName: string, projectId: string): Device => {
+                const d = raw?.device || raw; // unwrap wrapper
+                const serial =
+                    d.serial_no || d.serialNumber || d.serialNo || d.serial_number ||
+                    d.id || d._id || "";
+                return {
+                    id: d.id || d._id || serial,
+                    _id: d._id || d.id,
+                    name: d.name || serial || "Unnamed",
+                    serial_no: serial,
+                    serialNumber: serial,
+                    description: d.description,
+                    projectName,
+                    projectId,
+                };
+            }
+
             if (needsDeviceFetch) {
                 const results = await Promise.allSettled(
                     projectList.map(async (p) => {
@@ -111,11 +131,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                     const pId = projectList[i].id || projectList[i]._id || "";
                     const devs = result.status === "fulfilled" ? result.value : [];
                     for (const d of devs) {
-                        allDevices.push({
-                            ...d,
-                            projectName: projectList[i].name,
-                            projectId: pId,
-                        });
+                        allDevices.push(normalizeDevice(d, projectList[i].name, pId));
                     }
                 }
             } else {
@@ -123,11 +139,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                 for (const p of projectList) {
                     const pId = p.id || p._id || "";
                     for (const d of (p.devices || [])) {
-                        allDevices.push({
-                            ...d,
-                            projectName: p.name,
-                            projectId: pId,
-                        });
+                        allDevices.push(normalizeDevice(d, p.name, pId));
                     }
                 }
             }
