@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
@@ -316,12 +317,12 @@ function DashboardContent() {
             <section>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-text-primary">Recent Projects</h3>
-                <button
-                  onClick={() => router.push("/projects")}
+                <Link
+                  href="/projects"
                   className="text-xs font-medium text-primary hover:text-primary-hover transition-colors"
                 >
                   View All
-                </button>
+                </Link>
               </div>
 
               {projects.length === 0 ? (

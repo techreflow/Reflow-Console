@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -85,8 +86,8 @@ export default function Sidebar({ user }: SidebarProps) {
 
             return (
               <li key={item.name}>
-                <button
-                  onClick={() => router.push(item.path)}
+                <Link
+                  href={item.path}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${active
                     ? "bg-primary text-white font-medium"
                     : "text-text-secondary hover:bg-surface-muted"
@@ -100,7 +101,7 @@ export default function Sidebar({ user }: SidebarProps) {
                   {!isCollapsed && (
                     <span className="text-[13px]">{item.name}</span>
                   )}
-                </button>
+                </Link>
               </li>
             );
           })}
