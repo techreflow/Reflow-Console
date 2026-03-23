@@ -53,7 +53,7 @@ export default function ProjectsPage() {
 
       try {
         const data = await getAllProjects();
-        const projectList = data?.data?.projects || data?.projects || [];
+        const projectList = Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
         const userEmail = getUserEmail();
 
         // Fetch devices for each project to make the count dynamic
@@ -97,9 +97,7 @@ export default function ProjectsPage() {
     fetchProjects();
   }, []);
 
-  if (loading) {
-    return <LogoLoader text="Loading your projects..." />;
-  }
+  // Loading state is now inline so the layout transition is instant
 
   // Show org setup modal when triggered
   if (showOrgSetup) {

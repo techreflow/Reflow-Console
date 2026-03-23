@@ -9,9 +9,9 @@ const BASE_URL = process.env.NEXT_PUBLIC_REFLOW_API_URL || "https://reflow-backe
 
 function getToken(): string {
     if (typeof window !== "undefined") {
-        const token = sessionStorage.getItem("auth_token");
+        const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
         if (!token) {
-            // Strictly enforce tab-level sessions
+            // Strictly enforce session bounds
             deleteCookie("auth_token");
             deleteCookie("username");
             deleteCookie("fullName");
@@ -268,11 +268,14 @@ export async function deleteDevice(deviceId: string) {
     return handleResponse(res);
 }
 
-export async function exportDeviceData(deviceId: string, startDate: string, endDate: string) {
+export async function exportDeviceData(deviceId: string, startDate: string, endDate: string, interval?: string) {
+    const body: any = { startDate, endDate };
+    if (interval) body.interval = interval;
+    
     const res = await fetch(`${BASE_URL}/device/${deviceId}/export`, {
         method: "POST",
         headers: getHeaders(),
-        body: JSON.stringify({ startDate, endDate }),
+        body: JSON.stringify(body),
     });
     return handleResponse(res);
 }
@@ -347,9 +350,10 @@ export function isAuthenticated(): boolean {
 }
 
 export function saveToken(token: string) {
-    // Save to both sessionStorage (client-side) and cookies (for middleware)
+    // Save to both localStorage/sessionStorage (client-side) and cookies (for middleware)
+    localStorage.setItem("auth_token", token);
     sessionStorage.setItem("auth_token", token);
-    setCookie("auth_token", token); // No expiry passed = session cookie
+    setCookie("auth_token", token, 1); // 1 day expiry
 }
 
 export function clearAuth() {
@@ -362,6 +366,10 @@ export function clearAuth() {
     
     // Clear from localStorage
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("fullName");
+    localStorage.removeItem("org_confirmed");
+    localStorage.removeItem("org_setup_skipped");
 
     // Clear from cookies
     deleteCookie("auth_token");
@@ -371,35 +379,39 @@ export function clearAuth() {
 }
 
 export function saveUserInfo(email: string, name: string) {
-    // Save to sessionStorage (client-side)
+    // Save to localStorage/sessionStorage (client-side)
+    localStorage.setItem("username", email);
+    localStorage.setItem("fullName", name);
     sessionStorage.setItem("username", email);
     sessionStorage.setItem("fullName", name);
     
     // Save to cookies (for middleware)
-    setCookie("username", email);
-    setCookie("fullName", name);
+    setCookie("username", email, 1); // 1 day expiry
+    setCookie("fullName", name, 1); // 1 day expiry
 }
 
 export function saveOrgConfirmed() {
+    localStorage.setItem("org_confirmed", "true");
     sessionStorage.setItem("org_confirmed", "true");
-    setCookie("org_confirmed", "true");
+    setCookie("org_confirmed", "true", 1);
 }
 
 export function saveOrgSetupSkipped() {
+    localStorage.setItem("org_setup_skipped", "true");
     sessionStorage.setItem("org_setup_skipped", "true");
-    setCookie("org_setup_skipped", "true");
+    setCookie("org_setup_skipped", "true", 1);
 }
 
 export function getUserEmail(): string {
     if (typeof window !== "undefined") {
-        return sessionStorage.getItem("username") || "";
+        return localStorage.getItem("username") || sessionStorage.getItem("username") || "";
     }
     return "";
 }
 
 export function getUserName(): string {
     if (typeof window !== "undefined") {
-        return sessionStorage.getItem("fullName") || "";
+        return localStorage.getItem("fullName") || sessionStorage.getItem("fullName") || "";
     }
     return "";
 }

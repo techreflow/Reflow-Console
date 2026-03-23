@@ -117,7 +117,7 @@ function DashboardContent() {
         if (!isAuthenticated()) { router.push("/login"); return; }
 
         const data = await getAllProjects();
-        const projectList: Project[] = data?.data?.projects || data?.projects || [];
+        const projectList: Project[] = Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
         setProjects(projectList);
 
         // Collect all devices with their serial numbers
@@ -190,7 +190,7 @@ function DashboardContent() {
       if (!isAuthenticated()) return;
       const data = await getAllProjects().catch(() => null);
       if (!data) return;
-      const projectList: Project[] = data?.data?.projects || data?.projects || [];
+      const projectList: Project[] = Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
       const serials: string[] = [];
       projectList.forEach((p) => {
         (p.devices || []).forEach((d) => {
@@ -213,7 +213,7 @@ function DashboardContent() {
     return () => clearInterval(mqttRefresh);
   }, []);
 
-  if (loading) return <LogoLoader text="Initializing console..." />;
+  // Loading state is now inline so the layout transition is instant
 
   const handleOrgSetupComplete = () => setShowOrgSetup(false);
   const firstName = user?.name?.split(" ")[0] || "User";

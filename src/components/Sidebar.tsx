@@ -147,16 +147,16 @@ export default function Sidebar({ user }: SidebarProps) {
       <div className="px-3 pb-3 border-t border-border-subtle pt-3 flex-shrink-0">
         <div className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}>
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-orange-400 flex items-center justify-center flex-shrink-0">
-            <span className="text-sm font-semibold text-white">
+            <span suppressHydrationWarning className="text-sm font-semibold text-white">
               {user?.name?.charAt(0) || "U"}
             </span>
           </div>
           {!isCollapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text-primary truncate">
+            <div className="flex-1 min-w-0" suppressHydrationWarning>
+              <p suppressHydrationWarning className="text-sm font-medium text-text-primary truncate">
                 {user?.name || "User"}
               </p>
-              <p className="text-[11px] text-text-muted truncate">
+              <p suppressHydrationWarning className="text-[11px] text-text-muted truncate">
                 {user?.email || "user@reflow.io"}
               </p>
             </div>

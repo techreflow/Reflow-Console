@@ -76,6 +76,7 @@ export default function ReportsPage() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
     const [exportFormat, setExportFormat] = useState<"csv" | "pdf">("csv");
+    const [exportInterval, setExportInterval] = useState<"1 min" | "5 mins" | "15 mins">("1 min");
     const [exporting, setExporting] = useState(false);
     const [exportData, setExportData] = useState<any[]>([]);
 
@@ -221,11 +222,38 @@ export default function ReportsPage() {
             const startTimestamp = new Date(startDate).toISOString();
             const endTimestamp = new Date(endDate + "T23:59:59").toISOString();
             
-            const resData = await exportDeviceData(selectedDevice, startTimestamp, endTimestamp);
+            const resData = await exportDeviceData(selectedDevice, startTimestamp, endTimestamp, exportInterval);
             
             // Handle array or nested data structures
-            const dataRowArray = Array.isArray(resData) ? resData 
+            let dataRowArray = Array.isArray(resData) ? resData 
                                  : (resData?.data || resData?.readings || resData?.deviceData || []);
+
+            // Client-side filtering as fallback
+            let intervalMins = 1;
+            if (exportInterval === "5 mins") intervalMins = 5;
+            if (exportInterval === "15 mins") intervalMins = 15;
+
+            if (intervalMins > 1 && dataRowArray.length > 0) {
+                const sampled = [];
+                let lastTime = 0;
+                for (const row of dataRowArray) {
+                    const timeField = row.timestamp || row.createdAt || row.created_at || row.time;
+                    if (!timeField) {
+                        sampled.push(row);
+                        continue;
+                    }
+                    const time = new Date(timeField).getTime();
+                    if (isNaN(time)) {
+                        sampled.push(row);
+                        continue;
+                    }
+                    if (lastTime === 0 || time - lastTime >= intervalMins * 60 * 1000) {
+                        sampled.push(row);
+                        lastTime = time;
+                    }
+                }
+                dataRowArray = sampled;
+            }
 
             if (!dataRowArray || dataRowArray.length === 0) throw new Error("No data found");
             setExportData(dataRowArray);
@@ -490,32 +518,51 @@ export default function ReportsPage() {
                                 </div>
                             </div>
 
-                            {/* Format Selection */}
-                            <div>
-                                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5 block">
-                                    Format
-                                </label>
-                                <div className="flex gap-3">
-                                    {(["csv", "pdf"] as const).map((fmt) => (
-                                        <button
-                                            key={fmt}
-                                            onClick={() => setExportFormat(fmt)}
-                                            className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportFormat === fmt
-                                                    ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
-                                                    : "border-border-subtle text-text-secondary hover:border-border-default"
-                                                }`}
+                            {/* Interval and Format Selection */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5 block">
+                                        Data Interval
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={exportInterval}
+                                            onChange={(e) => setExportInterval(e.target.value as any)}
+                                            className="w-full px-3 py-2.5 rounded-lg border border-border-subtle bg-white text-sm text-text-primary focus:outline-none focus:border-primary appearance-none pr-10"
                                         >
-                                            {fmt === "csv" ? (
-                                                <span className="flex items-center gap-2 justify-center">
-                                                    <FileText className="w-4 h-4" /> CSV
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-2 justify-center">
-                                                    <FileDown className="w-4 h-4" /> PDF
-                                                </span>
-                                            )}
-                                        </button>
-                                    ))}
+                                            <option value="1 min">1 min</option>
+                                            <option value="5 mins">5 mins</option>
+                                            <option value="15 mins">15 mins</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5 block">
+                                        Format
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {(["csv", "pdf"] as const).map((fmt) => (
+                                            <button
+                                                key={fmt}
+                                                onClick={() => setExportFormat(fmt)}
+                                                className={`flex-1 px-2 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportFormat === fmt
+                                                        ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                                                        : "border-border-subtle text-text-secondary hover:border-border-default"
+                                                    }`}
+                                            >
+                                                {fmt === "csv" ? (
+                                                    <span className="flex items-center gap-1 justify-center">
+                                                        <FileText className="w-4 h-4 hidden sm:block" /> CSV
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1 justify-center">
+                                                        <FileDown className="w-4 h-4 hidden sm:block" /> PDF
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 

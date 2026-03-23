@@ -80,7 +80,7 @@ export default function DevicesPage() {
         setLoading(true);
         try {
             const data = await getAllProjects();
-            const projects: Project[] = data?.data?.projects || data?.projects || [];
+            const projects: Project[] = Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
 
             const results = await Promise.allSettled(
                 projects.map(async (p) => {
@@ -115,7 +115,7 @@ export default function DevicesPage() {
 
     useEffect(() => { loadDevices(); }, [loadDevices]);
 
-    if (loading) return <LogoLoader text="Loading devices…" />;
+    // Loading state is now inline so the layout transition is instant
 
     const filtered = devices.filter((d) => {
         const q = search.toLowerCase();

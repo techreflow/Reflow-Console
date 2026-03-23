@@ -79,7 +79,7 @@ export default function SharedAccessPage() {
 
             try {
                 const data = await getAllProjects();
-                const projectList = data?.data?.projects || data?.projects || [];
+                const projectList = Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
                 const userEmail = getUserEmail();
 
                 // Projects I own (for share dropdown)

@@ -141,7 +141,7 @@ export default function AnalyticsPage() {
                 
                 // Extract projects from response - match the Devices page logic
                 const projectList: { id?: string; _id?: string; name: string }[] =
-                    data?.data?.projects || data?.projects || [];
+                    Array.isArray(data) ? data : (data?.data?.projects || data?.projects || data?.data || []);
                 
                 console.log("[Analytics] Projects loaded:", projectList.length, projectList);
 
@@ -515,15 +515,7 @@ export default function AnalyticsPage() {
         );
     };
 
-    if (loading) {
-        return (
-            <DashboardLayout title="Analytics" breadcrumbs={[{ label: "Analytics" }]} user={{ name: fullName || "", email: email || "" }}>
-                <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
-            </DashboardLayout>
-        );
-    }
+    // Loading state is now inline so the layout transition is instant
 
     return (
         <DashboardLayout
