@@ -9,6 +9,7 @@ import StatCard from "@/components/StatCard";
 import ProjectCard from "@/components/ProjectCard";
 import SnapshotWidget from "@/components/SnapshotWidget";
 import SharedWidget from "@/components/SharedWidget";
+import DeviationWidget from "@/components/DeviationWidget";
 import LogoLoader from "@/components/LogoLoader";
 import OrganizationSetup from "@/components/OrganizationSetup";
 import { POLLING_CONFIG } from "@/config/constants";
@@ -261,6 +262,7 @@ function DashboardContent() {
           {/* Right Sidebar */}
           <aside className="space-y-4">
             <SnapshotWidget />
+            <DeviationWidget />
             <SharedWidget />
           </aside>
         </div>

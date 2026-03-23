@@ -607,9 +607,8 @@ export default function DeviceConfigPage() {
                                 : "No active channels"}
                         </p>
                         <button
-                            onClick={handleExportCSV}
-                            disabled={history.length === 0}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover transition-colors rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                            onClick={() => router.push('/reports')}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover transition-colors rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5"
                         >
                             <Download className="w-3.5 h-3.5" />
                             Export Data

@@ -238,7 +238,8 @@ function ProjectDetailContent({ projectId }: { projectId: string }) {
                                 key={device.serialNo + i}
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                 transition={{ delay: i * 0.025 }}
-                                className="grid grid-cols-[1.5fr_1.5fr_1fr] gap-4 px-5 py-3.5 items-center border-b border-slate-50 last:border-0 hover:bg-slate-50/80 transition-colors"
+                                onClick={() => router.push(`/devices/${device.id}`)}
+                                className="grid grid-cols-[1.5fr_1.5fr_1fr] gap-4 px-5 py-3.5 items-center border-b border-slate-50 last:border-0 hover:bg-blue-50/60 transition-colors cursor-pointer"
                             >
                                 {/* Device name */}
                                 <div className="flex items-center gap-3 min-w-0">
