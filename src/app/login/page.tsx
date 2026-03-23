@@ -225,27 +225,13 @@ export default function LoginPage() {
                                 </Link>
                             </motion.div>
 
-                            <motion.button
+                            <button
                                 type="submit"
                                 disabled={loading}
-                                className={`w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden group ${loading ? "opacity-50 cursor-not-allowed" : ""
+                                className={`w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 ${loading ? "opacity-50 cursor-not-allowed" : ""
                                     }`}
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.8 }}
-                                whileHover={!loading ? { scale: 1.02 } : {}}
-                                whileTap={!loading ? { scale: 0.98 } : {}}
                             >
-                                <motion.div
-                                    className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent"
-                                    animate={{ x: [-100, 400] }}
-                                    transition={{
-                                        duration: 3,
-                                        repeat: Infinity,
-                                        ease: "linear",
-                                    }}
-                                />
-                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                <span className="flex items-center justify-center gap-2">
                                     {loading ? (
                                         <>
                                             <svg
@@ -289,7 +275,7 @@ export default function LoginPage() {
                                         </>
                                     )}
                                 </span>
-                            </motion.button>
+                            </button>
 
                             <motion.p
                                 className="text-center text-gray-700 mt-6"
