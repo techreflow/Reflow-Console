@@ -139,14 +139,14 @@ export default function DevicesPage() {
                     />
                 </motion.div>
 
-                {/* Devices Table */}
+                {/* Devices Table / Cards */}
                 <motion.div
                     initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.15 }}
                     className="rounded-xl bg-white border border-border-subtle overflow-hidden"
                 >
-                    {/* Table header */}
-                    <div className="grid grid-cols-[2fr_1.5fr_1.2fr_1fr_auto] gap-4 px-6 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-border-subtle bg-surface-muted">
+                    {/* Table header — desktop only */}
+                    <div className="hidden md:grid grid-cols-[2fr_1.5fr_1.2fr_1fr_auto] gap-4 px-6 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-border-subtle bg-surface-muted">
                         <span>Device</span>
                         <span>Serial Number</span>
                         <span>Project</span>
@@ -191,57 +191,84 @@ export default function DevicesPage() {
                                     initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: i * 0.04 }}
-                                    className="grid grid-cols-[2fr_1.5fr_1.2fr_1fr_auto] gap-4 items-center px-6 py-4 border-b border-border-subtle last:border-0 hover:bg-surface-muted/50 transition-colors group cursor-pointer"
+                                    className="border-b border-border-subtle last:border-0 hover:bg-surface-muted/50 transition-colors group cursor-pointer"
                                 >
-                                    {/* Device name */}
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary">
-                                            <Cpu className="w-4 h-4" />
+                                    {/* ── Mobile card (< md) ── */}
+                                    <div className="md:hidden px-4 py-4 flex flex-col gap-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary">
+                                                    <Cpu className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-text-primary truncate">{devName}</p>
+                                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider truncate mt-0.5">
+                                                        {d.description || "IoT Device"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {serial !== "—" ? (
+                                                <DeviceStatusBadge serial={serial} />
+                                            ) : (
+                                                <span className="text-xs font-medium text-text-muted px-2 py-1 bg-surface-muted rounded-full">No serial</span>
+                                            )}
                                         </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-bold text-text-primary truncate">
-                                                {devName}
-                                            </p>
-                                            <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider truncate mt-0.5">
-                                                {d.description || "IoT Device"}
-                                            </p>
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <code className="text-[11px] font-bold text-text-muted bg-surface-muted px-2 py-1 rounded-md font-mono border border-border-subtle shadow-sm">
+                                                    {serial}
+                                                </code>
+                                                <span className="text-xs text-primary font-bold bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20">
+                                                    {device.projectName || "—"}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); router.push(`/devices/${devId}`); }}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-primary border border-primary/20 bg-primary/5 hover:bg-primary hover:text-white transition-all shadow-sm flex items-center gap-1"
+                                            >
+                                                Open <ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Serial */}
-                                    <div>
-                                        <code className="text-[11px] font-bold text-text-muted bg-surface-muted px-2 py-1.5 rounded-md font-mono w-fit border border-border-subtle shadow-sm">
-                                            {serial}
-                                        </code>
-                                    </div>
-
-                                    {/* Project */}
-                                    <div>
-                                        <span className="text-xs text-primary font-bold bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20 truncate">
-                                            {device.projectName || "—"}
-                                        </span>
-                                    </div>
-
-                                    {/* MQTT-derived live status */}
-                                    <div>
-                                        {serial !== "—" ? (
-                                            <DeviceStatusBadge serial={serial} />
-                                        ) : (
-                                            <span className="text-xs font-medium text-text-muted px-2 py-1 bg-surface-muted rounded-full">No serial</span>
-                                        )}
-                                    </div>
-
-                                    {/* Action */}
-                                    <div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                router.push(`/devices/${devId}`);
-                                            }}
-                                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-primary border border-primary/20 bg-primary/5 hover:bg-primary hover:text-white transition-all shadow-sm flex items-center gap-1"
-                                        >
-                                            Open <ChevronRight className="w-3.5 h-3.5" />
-                                        </button>
+                                    {/* ── Desktop table row (md+) ── */}
+                                    <div className="hidden md:grid grid-cols-[2fr_1.5fr_1.2fr_1fr_auto] gap-4 items-center px-6 py-4">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary">
+                                                <Cpu className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-text-primary truncate">{devName}</p>
+                                                <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider truncate mt-0.5">
+                                                    {d.description || "IoT Device"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <code className="text-[11px] font-bold text-text-muted bg-surface-muted px-2 py-1.5 rounded-md font-mono w-fit border border-border-subtle shadow-sm">
+                                                {serial}
+                                            </code>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-primary font-bold bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20 truncate">
+                                                {device.projectName || "—"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            {serial !== "—" ? (
+                                                <DeviceStatusBadge serial={serial} />
+                                            ) : (
+                                                <span className="text-xs font-medium text-text-muted px-2 py-1 bg-surface-muted rounded-full">No serial</span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); router.push(`/devices/${devId}`); }}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-primary border border-primary/20 bg-primary/5 hover:bg-primary hover:text-white transition-all shadow-sm flex items-center gap-1"
+                                            >
+                                                Open <ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </motion.div>
                             );

@@ -14,7 +14,6 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Zap,
   Bot,
   LucideIcon,
 } from "lucide-react";
@@ -32,6 +31,8 @@ interface SidebarProps {
     email?: string;
     role?: string;
   } | null;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 const menuItems: MenuItem[] = [
@@ -44,7 +45,7 @@ const menuItems: MenuItem[] = [
   { name: "Settings", icon: Settings, path: "/settings" },
 ];
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -63,17 +64,19 @@ export default function Sidebar({ user }: SidebarProps) {
     return pathname.startsWith(path);
   };
 
-  return (
-    <aside
-      className={`relative h-screen flex flex-col bg-white border-r border-border-subtle transition-all duration-300 ${isCollapsed ? "w-[72px]" : "w-[250px]"
-        }`}
-    >
+  const handleNavClick = () => {
+    // Close mobile drawer when navigating
+    if (onMobileClose) onMobileClose();
+  };
+
+  const sidebarContent = (collapsed: boolean) => (
+    <>
       {/* Logo */}
       <div className="h-14 flex items-center justify-center px-5 border-b border-border-subtle flex-shrink-0">
         <img
           src="/translogo.png"
           alt="ReFlow Logo"
-          className={`object-contain flex-shrink-0 transition-all duration-300 ${isCollapsed ? "w-8 h-8" : "h-10 w-auto max-w-[160px]"}`}
+          className={`object-contain flex-shrink-0 transition-all duration-300 ${collapsed ? "w-8 h-8" : "h-10 w-auto max-w-[160px]"}`}
         />
       </div>
 
@@ -83,24 +86,22 @@ export default function Sidebar({ user }: SidebarProps) {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
-
             return (
               <li key={item.name}>
                 <Link
                   href={item.path}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${active
-                    ? "bg-primary text-white font-medium"
-                    : "text-text-secondary hover:bg-surface-muted"
-                    } ${isCollapsed ? "justify-center px-2" : ""}`}
-                  title={isCollapsed ? item.name : undefined}
+                  onClick={handleNavClick}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+                    active ? "bg-primary text-white font-medium" : "text-text-secondary hover:bg-surface-muted"
+                  } ${collapsed ? "justify-center px-2" : ""}`}
+                  title={collapsed ? item.name : undefined}
                 >
                   <Icon
-                    className={`w-[18px] h-[18px] flex-shrink-0 ${active ? "text-white" : "text-text-muted group-hover:text-text-secondary"
-                      }`}
+                    className={`w-[18px] h-[18px] flex-shrink-0 ${
+                      active ? "text-white" : "text-text-muted group-hover:text-text-secondary"
+                    }`}
                   />
-                  {!isCollapsed && (
-                    <span className="text-[13px]">{item.name}</span>
-                  )}
+                  {!collapsed && <span className="text-[13px]">{item.name}</span>}
                 </Link>
               </li>
             );
@@ -111,21 +112,23 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Bob AI Button */}
       <div className="px-3 mb-3">
         <button
-          onClick={toggleBob}
-          title={isCollapsed ? "Bob AI" : undefined}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group border ${isBobOpen
+          onClick={() => { toggleBob(); handleNavClick(); }}
+          title={collapsed ? "Bob AI" : undefined}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group border ${
+            isBobOpen
               ? "bg-primary border-primary text-white shadow-md"
               : "bg-surface text-text-primary border-border-default hover:border-primary/50 hover:shadow-sm"
-            } ${isCollapsed ? "justify-center px-2" : ""}`}
+          } ${collapsed ? "justify-center px-2" : ""}`}
         >
           <div className="relative flex-shrink-0">
             <Bot className={`w-[18px] h-[18px] ${isBobOpen ? "text-white" : "text-primary group-hover:text-primary-hover"}`} />
             <span
-              className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border-2 ${isBobOpen ? "border-primary bg-white" : "border-white bg-primary animate-pulse"
-                }`}
+              className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border-2 ${
+                isBobOpen ? "border-primary bg-white" : "border-white bg-primary animate-pulse"
+              }`}
             />
           </div>
-          {!isCollapsed && (
+          {!collapsed && (
             <>
               <div className="flex-1 text-left">
                 <p className={`text-[13px] font-semibold leading-none ${isBobOpen ? "text-white" : "text-text-primary"}`}>Bob AI</p>
@@ -141,17 +144,15 @@ export default function Sidebar({ user }: SidebarProps) {
         </button>
       </div>
 
-
-
       {/* User Profile */}
       <div className="px-3 pb-3 border-t border-border-subtle pt-3 flex-shrink-0">
-        <div className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}>
+        <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-orange-400 flex items-center justify-center flex-shrink-0">
             <span suppressHydrationWarning className="text-sm font-semibold text-white">
               {user?.name?.charAt(0) || "U"}
             </span>
           </div>
-          {!isCollapsed && (
+          {!collapsed && (
             <div className="flex-1 min-w-0" suppressHydrationWarning>
               <p suppressHydrationWarning className="text-sm font-medium text-text-primary truncate">
                 {user?.name || "User"}
@@ -161,7 +162,7 @@ export default function Sidebar({ user }: SidebarProps) {
               </p>
             </div>
           )}
-          {!isCollapsed && (
+          {!collapsed && (
             <button
               onClick={handleLogout}
               className="p-1.5 rounded-md text-text-muted hover:text-error hover:bg-error/5 transition-colors"
@@ -172,18 +173,41 @@ export default function Sidebar({ user }: SidebarProps) {
           )}
         </div>
       </div>
+    </>
+  );
 
-      {/* Collapse Toggle */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-[3.25rem] w-6 h-6 bg-white shadow-md border border-border-subtle text-text-muted rounded-full flex items-center justify-center hover:bg-surface-muted transition-colors z-10"
+  return (
+    <>
+      {/* ── Desktop sidebar (hidden on mobile) ── */}
+      <aside
+        className={`relative h-screen flex-col bg-white border-r border-border-subtle transition-all duration-300 hidden md:flex ${
+          isCollapsed ? "w-[72px]" : "w-[250px]"
+        }`}
       >
-        {isCollapsed ? (
-          <ChevronRight className="w-3.5 h-3.5" />
-        ) : (
-          <ChevronLeft className="w-3.5 h-3.5" />
-        )}
-      </button>
-    </aside>
+        {sidebarContent(isCollapsed)}
+        {/* Collapse Toggle */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-[3.25rem] w-6 h-6 bg-white shadow-md border border-border-subtle text-text-muted rounded-full flex items-center justify-center hover:bg-surface-muted transition-colors z-10"
+        >
+          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+      </aside>
+
+      {/* ── Mobile overlay drawer ── */}
+      {mobileOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            onClick={onMobileClose}
+          />
+          {/* Drawer */}
+          <aside className="fixed inset-y-0 left-0 w-[260px] flex flex-col bg-white border-r border-border-subtle z-50 md:hidden shadow-2xl">
+            {sidebarContent(false)}
+          </aside>
+        </>
+      )}
+    </>
   );
 }
