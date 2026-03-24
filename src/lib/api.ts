@@ -7,7 +7,7 @@
 
 const BASE_URL = process.env.NEXT_PUBLIC_REFLOW_API_URL || "https://reflow-backend.fly.dev/api/v1";
 
-function getToken(): string {
+export function getToken(): string {
     if (typeof window !== "undefined") {
         const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
         if (!token) {

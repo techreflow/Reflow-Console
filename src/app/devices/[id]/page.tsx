@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getDeviceDetails, getUserEmail, getUserName } from "@/lib/api";
+import { getDeviceDetails, getUserEmail, getUserName, getToken } from "@/lib/api";
 import { useMqttDevice } from "@/lib/useMqttDevice";
 import {
     AreaChart, Area, ResponsiveContainer, Tooltip as RechartTooltip,
@@ -107,19 +107,19 @@ export default function DeviceConfigPage() {
     const [configSaved, setConfigSaved] = useState(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
-    // Calibration config
-    const [calibration, setCalibration] = useState<Record<string, { name: string; min: number; max: number; operation: string; calibValue: number; thresholdMin: number; thresholdMax: number }>>({
-        CH1: { name: "Channel 1", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-        CH2: { name: "Channel 2", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-        CH3: { name: "Channel 3", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-        CH4: { name: "Channel 4", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-        CH5: { name: "Channel 5", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-        CH6: { name: "Channel 6", min: 0, max: 100, operation: "add", calibValue: 0, thresholdMin: 0, thresholdMax: 100 },
-    });
-    const [showCalibration, setShowCalibration] = useState(false);
+    // Calibration config — populated from GET /device/:id/mqtt/config
+    // Starts empty; Save is disabled until config is successfully loaded
+    const [calibration, setCalibration] = useState<Record<string, { name: string; min: number; max: number; fac: number; cal: number }>>({});
+    const [configLoading, setConfigLoading] = useState(false);
+    const [configError, setConfigError]   = useState<string | null>(null);
+    const [configDiscarded, setConfigDiscarded] = useState<{ key: string; reason: string }[]>([]);
 
-    // Command log — session-only, last 5 MQTT INPUT payloads
+    // Command log — session-only, last 5 payloads
     const [commandLog, setCommandLog] = useState<CommandLog[]>([]);
+
+
+
+
 
     // ── Fetch device details ──────────────────
     useEffect(() => {
@@ -153,90 +153,92 @@ export default function DeviceConfigPage() {
         60,     // keep 60 history points for sparks
     );
 
-    // ── Load calibration config ───────────────
+    // ── Load calibration config from backend ──
     useEffect(() => {
         if (!device?.serialNumber) return;
+        const token = getToken();
         async function loadConfig() {
+            setConfigLoading(true);
+            setConfigError(null);
             try {
-                const res = await fetch(`/api/mqtt-configTable?serialId=${device!.serialNumber}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    const cfg = data[data.length - 1];
-                    const updated = { ...calibration };
-                    for (let i = 1; i <= 6; i++) {
-                        const key = `CH${i}`;
-                        if (cfg[`CH${i}_Name`]) updated[key].name = cfg[`CH${i}_Name`];
-                        if (cfg[`CH${i}_Min`] !== undefined) updated[key].min = Number(cfg[`CH${i}_Min`]);
-                        if (cfg[`CH${i}_Max`] !== undefined) updated[key].max = Number(cfg[`CH${i}_Max`]);
-                        
-                        let op = 'add';
-                        let cVal = 0;
-                        const f = cfg[`CH${i}_Factor`] !== undefined ? Number(cfg[`CH${i}_Factor`]) : 1;
-                        const o = cfg[`CH${i}_Offset`] !== undefined ? Number(cfg[`CH${i}_Offset`]) : 0;
-                        if (f === 1) {
-                            if (o < 0) { op = 'sub'; cVal = Math.abs(o); }
-                            else { op = 'add'; cVal = o; }
-                        } else {
-                            if (f < 1 && f > 0) { op = 'div'; cVal = 1 / f; }
-                            else { op = 'mul'; cVal = f; }
-                        }
-                        updated[key].operation = op;
-                        updated[key].calibValue = cVal;
-
-                        if (cfg[`CH${i}_ThreshMin`] !== undefined) updated[key].thresholdMin = Number(cfg[`CH${i}_ThreshMin`]);
-                        if (cfg[`CH${i}_ThreshMax`] !== undefined) updated[key].thresholdMax = Number(cfg[`CH${i}_ThreshMax`]);
-                    }
-                    setCalibration(updated);
+                const res = await fetch(`/api/device-config?serialId=${device!.serialNumber}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.status === 401) {
+                    setConfigError("Session expired — please log in again.");
+                    return;
                 }
+                if (!res.ok) {
+                    setConfigError(`Failed to load config (HTTP ${res.status}).`);
+                    return;
+                }
+                const json = await res.json();
+                // Determine channel count dynamically from SNO1, SNO2… keys
+                const cfg = json?.data?.config;
+                if (!cfg) { setConfigError("No config data returned by server."); return; }
+                let channelCount = 0;
+                while (cfg[`SNO${channelCount + 1}`] !== undefined) channelCount++;
+                if (channelCount === 0) { setConfigError("Device has no channels in config."); return; }
+                const updated: Record<string, { name: string; min: number; max: number; fac: number; cal: number }> = {};
+                for (let i = 1; i <= channelCount; i++) {
+                    updated[`CH${i}`] = {
+                        name: String(cfg[`SNO${i}`] ?? `Channel ${i}`).trim(),
+                        min:  Number(cfg[`MIN${i}`] ?? 0),
+                        max:  Number(cfg[`MAX${i}`] ?? 100),
+                        fac:  Number(cfg[`FAC${i}`] ?? 0),
+                        cal:  Number(cfg[`CAL${i}`] ?? 0),
+                    };
+                }
+                setCalibration(updated);
             } catch (err) {
-                console.error("Failed to load MQTT config:", err);
+                console.error("Failed to load device config:", err);
+                setConfigError("Network error — could not reach server.");
+            } finally {
+                setConfigLoading(false);
             }
         }
         loadConfig();
     }, [device?.serialNumber]);
 
-    // ── Save calibration ──────────────────────
+    // ── Save calibration to backend ───────────
     const handleSaveCalibration = async () => {
         if (!device?.serialNumber) return;
         setSavingConfig(true);
         setConfigSaved(false);
+        setConfigDiscarded([]);
+        const token = getToken();
         try {
-            const prefix = device.serialNumber.slice(0, 3);
-            const suffix = device.serialNumber.slice(3, 5);
-            const topic = `${prefix}/${suffix}/INPUT`;
-            const deviceInput: Record<string, string | number> = {};
-            for (let i = 1; i <= 6; i++) {
-                const key = `CH${i}`;
-                const ch = calibration[key];
-                let factor = 1;
-                let offset = 0;
-                if (ch.operation === 'add') { factor = 1; offset = ch.calibValue; }
-                if (ch.operation === 'sub') { factor = 1; offset = -ch.calibValue; }
-                if (ch.operation === 'mul') { factor = ch.calibValue; offset = 0; }
-                if (ch.operation === 'div') { factor = ch.calibValue !== 0 ? 1 / ch.calibValue : 1; offset = 0; }
-
-                deviceInput[`CH${i}_Name`] = ch.name;
-                deviceInput[`CH${i}_Min`] = ch.min;
-                deviceInput[`CH${i}_Max`] = ch.max;
-                deviceInput[`CH${i}_Factor`] = factor;
-                deviceInput[`CH${i}_Offset`] = offset;
-                deviceInput[`CH${i}_ThreshMin`] = ch.thresholdMin;
-                deviceInput[`CH${i}_ThreshMax`] = ch.thresholdMax;
-            }
-            const res = await fetch("/api/mqtt-input", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceInput, topic }),
+            // Build config from whatever channels were loaded from the backend
+            const config: Record<string, string | number> = {};
+            Object.entries(calibration).forEach(([key, ch], idx) => {
+                const i = idx + 1;
+                config[`SNO${i}`] = ch.name;
+                config[`MIN${i}`] = ch.min;
+                config[`MAX${i}`] = ch.max;
+                config[`FAC${i}`] = ch.fac;
+                config[`CAL${i}`] = ch.cal;
             });
-            if (res.ok) {
+            const res = await fetch(`/api/device-config?serialId=${device.serialNumber}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ config }),
+            });
+            const json = await res.json();
+            if (res.ok && json?.status === "success") {
                 setConfigSaved(true);
                 setTimeout(() => setConfigSaved(false), 3000);
-                // Log to command history
+                if (json?.data?.discardedKeys?.length) {
+                    setConfigDiscarded(json.data.discardedKeys);
+                }
                 setCommandLog((prev) => [
-                    { ts: new Date().toLocaleTimeString(), topic, payload: deviceInput },
+                    { ts: new Date().toLocaleTimeString(), topic: `backend:device/${device.serialNumber}/mqtt/config`, payload: config },
                     ...prev,
                 ].slice(0, 5));
+            } else {
+                console.error("Config publish failed:", json);
             }
         } catch (err) {
             console.error("Failed to save config:", err);
@@ -416,87 +418,103 @@ export default function DeviceConfigPage() {
                                 {/* Calibration Table */}
                                 <div>
                                     <h4 className="text-sm font-bold text-text-primary mb-3">Channel Calibration</h4>
-                                    <div className="border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-surface-muted text-[11px] uppercase tracking-wider text-text-muted">
-                                                <tr>
-                                                    <th className="px-4 py-3 font-bold border-b border-border-subtle">Channel Name</th>
-                                                    <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Range (Min - Max)</th>
-                                                    <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Operation</th>
-                                                    <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Value</th>
-                                                    <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Threshold (Min - Max)</th>
-                                                    <th className="px-4 py-3 font-bold text-right border-b border-border-subtle">Readings</th>
-                                                    <th className="px-4 py-3 font-bold text-right border-b border-border-subtle">Calibrated<br/>Readings</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-border-subtle">
-                                                {Object.entries(calibration).map(([key, ch]) => {
-                                                    const idx = parseInt(key.replace("CH", "")) - 1;
-                                                    const chData = channels[idx];
-                                                    const rawVal = chData?.value !== null && chData?.value !== undefined ? Number(chData.value) : 0;
-                                                    let calibratedVal = rawVal;
-                                                    if (ch.operation === 'add') calibratedVal = rawVal + ch.calibValue;
-                                                    if (ch.operation === 'sub') calibratedVal = rawVal - ch.calibValue;
-                                                    if (ch.operation === 'mul') calibratedVal = rawVal * ch.calibValue;
-                                                    if (ch.operation === 'div') calibratedVal = ch.calibValue !== 0 ? rawVal / ch.calibValue : rawVal;
-                                                    return (
-                                                    <tr key={key} className="hover:bg-surface-muted/30 transition-colors">
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-mono font-bold text-text-muted text-xs bg-surface-muted px-2 py-1 rounded">{key}</span>
-                                                                <input type="text" value={ch.name}
-                                                                    onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], name: e.target.value } }))}
-                                                                    className="w-full px-2 py-1.5 rounded border border-border-subtle text-sm font-semibold focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-shadow"
-                                                                    placeholder="Name"
-                                                                />
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <input type="number" min={0} onKeyDown={(e) => { if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault() }} value={ch.min} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], min: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
-                                                                <span className="text-text-muted font-bold">-</span>
-                                                                <input type="number" min={0} onKeyDown={(e) => { if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault() }} value={ch.max} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], max: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex justify-center">
-                                                                <select value={ch.operation} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], operation: e.target.value } }))} className="w-28 px-1 py-1.5 rounded border border-border-subtle text-xs font-medium text-text-secondary focus:border-primary outline-none cursor-pointer bg-white">
-                                                                    <option value="add">Addition</option>
-                                                                    <option value="sub">Subtraction</option>
-                                                                    <option value="mul">Multiplication</option>
-                                                                    <option value="div">Division</option>
-                                                                </select>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex justify-center">
-                                                                <input type="number" min={0} onKeyDown={(e) => { if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault() }} step="0.1" value={ch.calibValue} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], calibValue: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-bold text-primary focus:border-primary outline-none" />
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <input type="number" min={0} onKeyDown={(e) => { if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault() }} value={ch.thresholdMin} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], thresholdMin: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
-                                                                <span className="text-text-muted font-bold">-</span>
-                                                                <input type="number" min={0} onKeyDown={(e) => { if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault() }} value={ch.thresholdMax} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], thresholdMax: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <span className="font-mono font-bold text-text-muted text-sm">{chData?.value !== null ? rawVal.toFixed(2) : "—"}</span>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <span className="font-mono font-black text-primary bg-primary/5 px-2 py-1 rounded text-sm">{chData?.value !== null ? calibratedVal.toFixed(2) : "—"}</span>
-                                                        </td>
+
+                                    {/* Loading state */}
+                                    {configLoading && (
+                                        <div className="flex items-center justify-center py-12 gap-3 text-text-muted">
+                                            <span className="w-5 h-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                                            <span className="text-sm font-medium">Loading device config…</span>
+                                        </div>
+                                    )}
+
+                                    {/* Error state */}
+                                    {!configLoading && configError && (
+                                        <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                                            <span className="text-lg leading-none">⚠</span>
+                                            <div>
+                                                <p className="font-bold">Failed to load config</p>
+                                                <p className="text-xs mt-0.5">{configError}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Table — only when data is loaded */}
+                                    {!configLoading && !configError && Object.keys(calibration).length > 0 && (
+                                        <div className="border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+                                            <table className="w-full text-left text-sm">
+                                                <thead className="bg-surface-muted text-[11px] uppercase tracking-wider text-text-muted">
+                                                    <tr>
+                                                        <th className="px-4 py-3 font-bold border-b border-border-subtle">Channel Name (SNO)</th>
+                                                        <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Range (MIN – MAX)</th>
+                                                        <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Factor (FAC)</th>
+                                                        <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Calibration (CAL)</th>
+                                                        <th className="px-4 py-3 font-bold text-right border-b border-border-subtle">Live Value</th>
                                                     </tr>
-                                                )})}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div className="flex items-start gap-2 p-3 mt-5 rounded-lg bg-primary/5 border border-primary/10">
-                                        <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                                        <p className="text-xs text-text-muted">
-                                            Settings will be applied to the hardware after the next heartbeat sync over MQTT. Success is verified when the broker confirms receipt.
-                                        </p>
-                                    </div>
+                                                </thead>
+                                                <tbody className="divide-y divide-border-subtle">
+                                                    {Object.entries(calibration).map(([key, ch]) => {
+                                                        const idx = parseInt(key.replace("CH", "")) - 1;
+                                                        const chData = channels[idx];
+                                                        const rawVal = chData?.value !== null && chData?.value !== undefined ? Number(chData.value) : null;
+                                                        return (
+                                                        <tr key={key} className="hover:bg-surface-muted/30 transition-colors">
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="font-mono font-bold text-text-muted text-xs bg-surface-muted px-2 py-1 rounded">{key}</span>
+                                                                    <input type="text" value={ch.name}
+                                                                        onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], name: e.target.value } }))}
+                                                                        className="w-full px-2 py-1.5 rounded border border-border-subtle text-sm font-semibold focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-shadow"
+                                                                        placeholder="Name"
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <input type="number" value={ch.min} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], min: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
+                                                                    <span className="text-text-muted font-bold">–</span>
+                                                                    <input type="number" value={ch.max} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], max: Number(e.target.value) } }))} className="w-16 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex justify-center">
+                                                                    <input type="number" step="0.01" value={ch.fac} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], fac: Number(e.target.value) } }))} className="w-20 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-mono focus:border-primary outline-none" />
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex justify-center">
+                                                                    <input type="number" step="0.01" value={ch.cal} onChange={(e) => setCalibration(p => ({ ...p, [key]: { ...p[key], cal: Number(e.target.value) } }))} className="w-20 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-bold text-primary focus:border-primary outline-none" />
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <span className="font-mono font-black text-primary bg-primary/5 px-2 py-1 rounded text-sm">
+                                                                    {rawVal !== null ? rawVal.toFixed(2) : "—"}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    )})}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {/* Discarded keys warning */}
+                                    {configDiscarded.length > 0 && (
+                                        <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                                            <p className="font-bold mb-1">⚠ Some keys were discarded by the server:</p>
+                                            {configDiscarded.map((d, i) => (
+                                                <p key={i}><code className="font-mono">{d.key}</code> — {d.reason}</p>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {!configLoading && !configError && (
+                                        <div className="flex items-start gap-2 p-3 mt-3 rounded-lg bg-primary/5 border border-primary/10">
+                                            <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                                            <p className="text-xs text-text-muted">
+                                                Config is published directly to the backend and pushed to the device over MQTT. FAC = scaling factor, CAL = calibration offset.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -509,18 +527,19 @@ export default function DeviceConfigPage() {
                                 </button>
                                 <button
                                     onClick={handleSaveCalibration}
-                                    disabled={savingConfig}
-                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
+                                    disabled={savingConfig || configLoading || Object.keys(calibration).length === 0}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {savingConfig ? (
                                         <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                     ) : <Save className="w-4 h-4" />}
-                                    {savingConfig ? "Saving to MQTT…" : configSaved ? "Saved Successfully ✓" : "Save Changes"}
+                                    {savingConfig ? "Publishing…" : configSaved ? "Published ✓" : "Publish Config"}
                                 </button>
                             </div>
                         </motion.div>
                     </div>
                 )}
+
 
                 {/* Live Data Stream - FULL WIDTH */}
                 <motion.div
