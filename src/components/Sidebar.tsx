@@ -1,5 +1,7 @@
 "use client";
 
+import { clearAuth } from "@/lib/api";
+
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -52,11 +54,8 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
   const { isOpen: isBobOpen, toggle: toggleBob } = useBobAI();
 
   const handleLogout = (): void => {
-    if (typeof window !== "undefined") {
-      sessionStorage.clear();
-      localStorage.removeItem("auth_token");
-      window.location.href = "/login";
-    }
+    clearAuth();
+    window.location.href = "/login";
   };
 
   const isActive = (path: string) => {

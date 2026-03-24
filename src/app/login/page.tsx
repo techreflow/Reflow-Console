@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login, saveToken, saveUserInfo } from "@/lib/api";
+import LogoLoader from "@/components/LogoLoader";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -13,6 +14,7 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [showLoader, setShowLoader] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -41,8 +43,12 @@ export default function LoginPage() {
                     const derivedName = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
                     saveUserInfo(email.trim(), derivedName);
                 }
-                // Hard redirect to dashboard (with org setup trigger)
-                window.location.href = "/?setup=org";
+                // Show branded loader for 4 seconds while data loads, then redirect
+                setLoading(false);
+                setShowLoader(true);
+                setTimeout(() => {
+                    window.location.href = "/?setup=org";
+                }, 4000);
             } else {
                 const errorMsg =
                     result.message ||
@@ -57,6 +63,12 @@ export default function LoginPage() {
             setLoading(false);
         }
     };
+
+    // Show full-screen loader after successful login
+    if (showLoader) {
+        return <LogoLoader text="Setting up your workspace..." />;
+    }
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-white via-blue-50 to-blue-100 relative overflow-hidden">

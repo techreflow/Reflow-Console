@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 // Define which routes require authentication
 const PROTECTED_ROUTES = [
+  "/",
   "/analytics",
   "/devices",
   "/projects",
@@ -19,7 +20,6 @@ const PUBLIC_ROUTES = [
   "/register",
   "/verify-otp",
   "/forgot-password",
-  "/",
 ];
 
 /**
