@@ -170,12 +170,12 @@ export default function AccessPage() {
             if (inviteMode === "org") {
                 const res = await inviteToOrganization(inviteEmail.trim(), selectedRole);
                 if (res?.error || res?.success === false) throw new Error(res?.message || res?.error);
-                showToast(`Invited ${inviteEmail} to organisation as ${selectedRole}`);
+                showToast(`✓ Invited ${inviteEmail} successfully as ${selectedRole}`);
             } else {
                 if (!selectedProjectId) { showToast("Please select a project", false); return; }
                 const res = await shareProject(selectedProjectId, inviteEmail.trim(), selectedRole);
                 if (res?.error || res?.success === false) throw new Error(res?.message || res?.error);
-                showToast(`Shared project with ${inviteEmail} as ${selectedRole}`);
+                showToast(`✓ Added ${inviteEmail} to project successfully as ${selectedRole}`);
             }
             setInviteEmail("");
             await loadData(true);
@@ -192,7 +192,7 @@ export default function AccessPage() {
         try {
             await apiRemoveMember(memberId);
             setMembers(prev => prev.filter(m => m.id !== memberId));
-            showToast("Member removed from organisation");
+            showToast("✓ Member removed successfully");
         } catch {
             showToast("Failed to remove member", false);
         } finally {

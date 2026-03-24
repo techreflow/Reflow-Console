@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { clearAuth } from "@/lib/api";
 
 import { useState } from "react";
@@ -72,11 +73,15 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     <>
       {/* Logo */}
       <div className="h-14 flex items-center justify-center px-5 border-b border-border-subtle flex-shrink-0">
-        <img
-          src="/translogo.png"
-          alt="ReFlow Logo"
-          className={`object-contain flex-shrink-0 transition-all duration-300 ${collapsed ? "w-8 h-8" : "h-10 w-auto max-w-[160px]"}`}
-        />
+        <div className="relative h-10 w-auto max-w-[160px] flex-shrink-0 transition-all duration-300" style={{ width: collapsed ? 32 : 160, height: collapsed ? 32 : 40 }}>
+          <Image
+            src="/translogo.png"
+            alt="ReFlow Logo"
+            fill
+            className="object-contain"
+            priority
+          />
+        </div>
       </div>
 
       {/* Navigation */}
