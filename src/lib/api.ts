@@ -6,6 +6,36 @@
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_REFLOW_API_URL || "https://reflow-backend.fly.dev/api/v1";
+const NO_STORE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, max-age=0",
+    Pragma: "no-cache",
+};
+
+function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Headers {
+    const headers = new Headers();
+
+    for (const headerSet of headerSets) {
+        if (!headerSet) continue;
+
+        const nextHeaders = new Headers(headerSet);
+        nextHeaders.forEach((value, key) => {
+            headers.set(key, value);
+        });
+    }
+
+    return headers;
+}
+
+function apiFetch(path: string, init: RequestInit = {}, { noStore = false }: { noStore?: boolean } = {}) {
+    return fetch(`${BASE_URL}${path}`, {
+        ...init,
+        cache: noStore ? "no-store" : init.cache,
+        headers: mergeHeaders(
+            noStore ? NO_STORE_HEADERS : undefined,
+            init.headers
+        ),
+    });
+}
 
 export function getToken(): string {
     if (typeof window !== "undefined") {
@@ -51,7 +81,7 @@ async function handleResponse(res: Response) {
 // ──────────────────────────────
 
 export async function signup(email: string, name: string, password: string, contactNumber?: string) {
-    const res = await fetch(`${BASE_URL}/auth/user/signup`, {
+    const res = await apiFetch("/auth/user/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name, password, ...(contactNumber ? { contactNumber } : {}) }),
@@ -60,7 +90,7 @@ export async function signup(email: string, name: string, password: string, cont
 }
 
 export async function login(email: string, password: string) {
-    const res = await fetch(`${BASE_URL}/auth/user/login`, {
+    const res = await apiFetch("/auth/user/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -69,7 +99,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function generateOTP(email: string, action: string = "signup") {
-    const res = await fetch(`${BASE_URL}/auth/user/generate/otp`, {
+    const res = await apiFetch("/auth/user/generate/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, action }),
@@ -78,7 +108,7 @@ export async function generateOTP(email: string, action: string = "signup") {
 }
 
 export async function verifyOTP(email: string, verificationCode: string) {
-    const res = await fetch(`${BASE_URL}/auth/user/verify/otp`, {
+    const res = await apiFetch("/auth/user/verify/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, verificationCode }),
@@ -96,15 +126,15 @@ export async function verifyOTP(email: string, verificationCode: string) {
 // ──────────────────────────────
 
 export async function getOrganization() {
-    const res = await fetch(`${BASE_URL}/organization`, {
+    const res = await apiFetch("/organization", {
         headers: getHeaders(),
-    });
+    }, { noStore: true });
     const data = await handleResponse(res);
     return { ok: true, status: res.status, ...data };
 }
 
 export async function createOrganization(name: string, description: string) {
-    const res = await fetch(`${BASE_URL}/organization`, {
+    const res = await apiFetch("/organization", {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ name, description }),
@@ -113,7 +143,7 @@ export async function createOrganization(name: string, description: string) {
 }
 
 export async function updateOrganization(data: { name?: string; description?: string }) {
-    const res = await fetch(`${BASE_URL}/organization`, {
+    const res = await apiFetch("/organization", {
         method: "PUT",
         headers: getHeaders(),
         body: JSON.stringify(data),
@@ -122,7 +152,7 @@ export async function updateOrganization(data: { name?: string; description?: st
 }
 
 export async function inviteToOrganization(email: string, role: string = "MEMBER") {
-    const res = await fetch(`${BASE_URL}/organization/invite`, {
+    const res = await apiFetch("/organization/invite", {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ email, role }),
@@ -131,7 +161,7 @@ export async function inviteToOrganization(email: string, role: string = "MEMBER
 }
 
 export async function removeMember(memberId: string) {
-    const res = await fetch(`${BASE_URL}/organization/member/${memberId}`, {
+    const res = await apiFetch(`/organization/member/${memberId}`, {
         method: "DELETE",
         headers: getHeaders(),
     });
@@ -139,7 +169,7 @@ export async function removeMember(memberId: string) {
 }
 
 export async function leaveOrganization() {
-    const res = await fetch(`${BASE_URL}/organization/leave`, {
+    const res = await apiFetch("/organization/leave", {
         method: "POST",
         headers: getHeaders(),
     });
@@ -147,7 +177,7 @@ export async function leaveOrganization() {
 }
 
 export async function transferOwnership(newOwnerId: string) {
-    const res = await fetch(`${BASE_URL}/organization/transfer-ownership`, {
+    const res = await apiFetch("/organization/transfer-ownership", {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ newOwnerId }),
@@ -156,9 +186,9 @@ export async function transferOwnership(newOwnerId: string) {
 }
 
 export async function getOrganizationActivities() {
-    const res = await fetch(`${BASE_URL}/organization/activities`, {
+    const res = await apiFetch("/organization/activities", {
         headers: getHeaders(),
-    });
+    }, { noStore: true });
     return handleResponse(res);
 }
 
@@ -167,14 +197,14 @@ export async function getOrganizationActivities() {
 // ──────────────────────────────
 
 export async function getAllProjects() {
-    const res = await fetch(`${BASE_URL}/projects`, {
+    const res = await apiFetch("/projects", {
         headers: getHeaders(),
-    });
+    }, { noStore: true });
     return handleResponse(res);
 }
 
 export async function createProject(name: string, description: string) {
-    const res = await fetch(`${BASE_URL}/project`, {
+    const res = await apiFetch("/project", {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ name, description }),
@@ -183,7 +213,7 @@ export async function createProject(name: string, description: string) {
 }
 
 export async function updateProject(projectId: string, data: { name?: string; description?: string }) {
-    const res = await fetch(`${BASE_URL}/project/${projectId}`, {
+    const res = await apiFetch(`/project/${projectId}`, {
         method: "PUT",
         headers: getHeaders(),
         body: JSON.stringify(data),
@@ -192,7 +222,7 @@ export async function updateProject(projectId: string, data: { name?: string; de
 }
 
 export async function deleteProject(projectId: string) {
-    const res = await fetch(`${BASE_URL}/project/${projectId}`, {
+    const res = await apiFetch(`/project/${projectId}`, {
         method: "DELETE",
         headers: getHeaders(),
     });
@@ -200,7 +230,7 @@ export async function deleteProject(projectId: string) {
 }
 
 export async function shareProject(projectId: string, userEmail: string, role: string = "EDITOR") {
-    const res = await fetch(`${BASE_URL}/project/${projectId}/share`, {
+    const res = await apiFetch(`/project/${projectId}/share`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ userEmail, role }),
@@ -213,16 +243,16 @@ export async function shareProject(projectId: string, userEmail: string, role: s
 // ──────────────────────────────
 
 export async function getProjectDevices(projectId: string) {
-    const res = await fetch(`${BASE_URL}/project/${projectId}/devices`, {
+    const res = await apiFetch(`/project/${projectId}/devices`, {
         headers: getHeaders(),
-    });
+    }, { noStore: true });
     return handleResponse(res);
 }
 
 export async function getDeviceDetails(deviceId: string) {
-    const res = await fetch(`${BASE_URL}/device/${deviceId}`, {
+    const res = await apiFetch(`/device/${deviceId}`, {
         headers: getHeaders(),
-    });
+    }, { noStore: true });
     return handleResponse(res);
 }
 
@@ -233,7 +263,7 @@ export async function createDevice(
     name: string,
     description: string
 ) {
-    const res = await fetch(`${BASE_URL}/project/${projectId}/device`, {
+    const res = await apiFetch(`/project/${projectId}/device`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ serialNumber, subscriptionKey, name, description }),
@@ -243,7 +273,7 @@ export async function createDevice(
 }
 
 export async function updateDevice(deviceId: string, data: { name?: string; description?: string }) {
-    const res = await fetch(`${BASE_URL}/device/${deviceId}`, {
+    const res = await apiFetch(`/device/${deviceId}`, {
         method: "PUT",
         headers: getHeaders(),
         body: JSON.stringify(data),
@@ -252,7 +282,7 @@ export async function updateDevice(deviceId: string, data: { name?: string; desc
 }
 
 export async function moveDevice(deviceId: string, newProjectId: string) {
-    const res = await fetch(`${BASE_URL}/device/${deviceId}/move`, {
+    const res = await apiFetch(`/device/${deviceId}/move`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ newProjectId }),
@@ -261,7 +291,7 @@ export async function moveDevice(deviceId: string, newProjectId: string) {
 }
 
 export async function deleteDevice(deviceId: string) {
-    const res = await fetch(`${BASE_URL}/device/${deviceId}`, {
+    const res = await apiFetch(`/device/${deviceId}`, {
         method: "DELETE",
         headers: getHeaders(),
     });
@@ -272,7 +302,7 @@ export async function exportDeviceData(deviceId: string, startDate: string, endD
     const body: any = { startDate, endDate };
     if (interval) body.interval = interval;
     
-    const res = await fetch(`${BASE_URL}/device/${deviceId}/export`, {
+    const res = await apiFetch(`/device/${deviceId}/export`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(body),
@@ -285,7 +315,7 @@ export async function exportDeviceData(deviceId: string, startDate: string, endD
 // ──────────────────────────────
 
 export async function healthCheck() {
-    const res = await fetch(`${BASE_URL}/health`);
+    const res = await apiFetch("/health", {}, { noStore: true });
     return handleResponse(res);
 }
 
@@ -345,6 +375,11 @@ function deleteCookie(name: string) {
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
 }
 
+function dispatchUserInfoChanged() {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event("reflow:user-info-changed"));
+}
+
 export function isAuthenticated(): boolean {
     return !!getToken();
 }
@@ -376,6 +411,9 @@ export function clearAuth() {
     deleteCookie("username");
     deleteCookie("fullName");
     deleteCookie("org_confirmed");
+    deleteCookie("org_setup_skipped");
+
+    dispatchUserInfoChanged();
 }
 
 export function saveUserInfo(email: string, name: string) {
@@ -388,6 +426,8 @@ export function saveUserInfo(email: string, name: string) {
     // Save to cookies (for middleware)
     setCookie("username", email, 1); // 1 day expiry
     setCookie("fullName", name, 1); // 1 day expiry
+
+    dispatchUserInfoChanged();
 }
 
 export function saveOrgConfirmed() {
@@ -414,4 +454,11 @@ export function getUserName(): string {
         return localStorage.getItem("fullName") || sessionStorage.getItem("fullName") || "";
     }
     return "";
+}
+
+export function getStoredUserInfo() {
+    return {
+        email: getUserEmail(),
+        name: getUserName(),
+    };
 }

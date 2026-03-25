@@ -91,26 +91,48 @@ export default function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
   };
 
   useEffect(() => {
-    import("../lib/api").then((api) => {
-      const name = api.getUserName();
-      const email = api.getUserEmail();
-      const isLoggedIn = api.isAuthenticated();
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
 
-      if (name) {
-        setUserName(name);
-        setUserRole("Member");
-      } else if (email) {
-        const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-        setUserName(derived);
-        setUserRole("Member");
-      } else if (isLoggedIn) {
-        setUserName("User");
-        setUserRole("Member");
-      } else {
-        setUserName("User");
-        setUserRole("Guest");
-      }
+    import("../lib/api").then((api) => {
+      if (disposed) return;
+
+      const syncUser = () => {
+        const { name, email } = api.getStoredUserInfo();
+        const isLoggedIn = api.isAuthenticated();
+
+        if (name) {
+          setUserName(name);
+          setUserRole("Member");
+        } else if (email) {
+          const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+          setUserName(derived);
+          setUserRole("Member");
+        } else if (isLoggedIn) {
+          setUserName("User");
+          setUserRole("Member");
+        } else {
+          setUserName("User");
+          setUserRole("Guest");
+        }
+      };
+
+      syncUser();
+      window.addEventListener("storage", syncUser);
+      window.addEventListener("focus", syncUser);
+      window.addEventListener("reflow:user-info-changed", syncUser);
+
+      cleanup = () => {
+        window.removeEventListener("storage", syncUser);
+        window.removeEventListener("focus", syncUser);
+        window.removeEventListener("reflow:user-info-changed", syncUser);
+      };
     });
+
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
   }, []);
 
   const getInitials = (name: string) =>

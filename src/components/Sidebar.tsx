@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { clearAuth } from "@/lib/api";
+import { clearAuth, getStoredUserInfo } from "@/lib/api";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -53,6 +53,32 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const { isOpen: isBobOpen, toggle: toggleBob } = useBobAI();
+  const [mounted, setMounted] = useState(false);
+  const [clientUser, setClientUser] = useState(user);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncUser = () => {
+      const storedUser = getStoredUserInfo();
+      setClientUser({
+        name: user?.name || storedUser.name || "",
+        email: user?.email || storedUser.email || "",
+      });
+      setMounted(true);
+    };
+
+    syncUser();
+    window.addEventListener("storage", syncUser);
+    window.addEventListener("focus", syncUser);
+    window.addEventListener("reflow:user-info-changed", syncUser);
+
+    return () => {
+      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("focus", syncUser);
+      window.removeEventListener("reflow:user-info-changed", syncUser);
+    };
+  }, [user]);
 
   const handleLogout = (): void => {
     clearAuth();
@@ -152,17 +178,17 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
       <div className="px-3 pb-3 border-t border-border-subtle pt-3 flex-shrink-0">
         <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-orange-400 flex items-center justify-center flex-shrink-0">
-            <span suppressHydrationWarning className="text-sm font-semibold text-white">
-              {user?.name?.charAt(0) || "U"}
+            <span className="text-sm font-semibold text-white">
+              {mounted ? (clientUser?.name?.charAt(0) || "U") : "U"}
             </span>
           </div>
           {!collapsed && (
-            <div className="flex-1 min-w-0" suppressHydrationWarning>
-              <p suppressHydrationWarning className="text-sm font-medium text-text-primary truncate">
-                {user?.name || "User"}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary truncate">
+                {mounted ? (clientUser?.name || "User") : "User"}
               </p>
-              <p suppressHydrationWarning className="text-[11px] text-text-muted truncate">
-                {user?.email || "user@reflow.io"}
+              <p className="text-[11px] text-text-muted truncate">
+                {mounted ? (clientUser?.email || "user@reflow.io") : "user@reflow.io"}
               </p>
             </div>
           )}
