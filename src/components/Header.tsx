@@ -97,18 +97,21 @@ export default function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
     import("../lib/api").then((api) => {
       if (disposed) return;
 
-      const syncUser = () => {
-        const { name, email } = api.getStoredUserInfo();
+      const syncUser = async () => {
+        try {
+          const res = await api.getProfile();
+          const profile = res?.data?.profile;
+          if (profile) {
+            setUserName(profile.name);
+            setUserRole("Member");
+            return;
+          }
+        } catch (e) {
+          // Fallback if network fails
+        }
+        
         const isLoggedIn = api.isAuthenticated();
-
-        if (name) {
-          setUserName(name);
-          setUserRole("Member");
-        } else if (email) {
-          const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-          setUserName(derived);
-          setUserRole("Member");
-        } else if (isLoggedIn) {
+        if (isLoggedIn) {
           setUserName("User");
           setUserRole("Member");
         } else {
@@ -118,12 +121,10 @@ export default function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
       };
 
       syncUser();
-      window.addEventListener("storage", syncUser);
       window.addEventListener("focus", syncUser);
       window.addEventListener("reflow:user-info-changed", syncUser);
 
       cleanup = () => {
-        window.removeEventListener("storage", syncUser);
         window.removeEventListener("focus", syncUser);
         window.removeEventListener("reflow:user-info-changed", syncUser);
       };

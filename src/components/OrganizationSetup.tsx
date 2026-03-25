@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getOrganization, createOrganization, saveOrgConfirmed, saveOrgSetupSkipped } from "@/lib/api";
+import { getOrganization, createOrganization } from "@/lib/api";
 import { Building2, ArrowRight, Loader2, CheckCircle2, X, RefreshCw } from "lucide-react";
 
 interface OrganizationSetupProps {
@@ -22,19 +22,11 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
     useEffect(() => {
         // Check if user already belongs to an org
         async function checkOrg() {
-            // Check session/local cache first to avoid redundant API calls
-            if (typeof window !== "undefined" &&
-                (sessionStorage.getItem("org_confirmed") || localStorage.getItem("org_confirmed"))) {
-                setHasOrg(true);
-                onComplete();
-                return;
-            }
             try {
                 const data = await getOrganization();
                 // Use HTTP status as the definitive signal:
                 // 200 = user is in an org, anything else (404 etc.) = no org
                 if (data.ok === true) {
-                    saveOrgConfirmed();
                     setHasOrg(true);
                     onComplete();
                     return;
@@ -49,7 +41,6 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
     }, [onComplete]);
 
     const handleSkip = () => {
-        saveOrgSetupSkipped();
         onComplete();
     };
 
@@ -58,7 +49,6 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
         try {
             const data = await getOrganization();
             if (data.ok === true) {
-                saveOrgConfirmed();
                 setHasOrg(true);
                 setSuccess(true);
                 setTimeout(() => {
@@ -85,7 +75,6 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
         try {
             const data = await createOrganization(name.trim(), description.trim());
             if (data?.status === "success" || data?.data) {
-                saveOrgConfirmed();
                 setSuccess(true);
                 setTimeout(() => {
                     onComplete();

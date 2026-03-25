@@ -6,10 +6,6 @@
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_REFLOW_API_URL || "https://reflow-backend.fly.dev/api/v1";
-const NO_STORE_HEADERS = {
-    "Cache-Control": "no-cache, no-store, max-age=0",
-    Pragma: "no-cache",
-};
 
 function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Headers {
     const headers = new Headers();
@@ -26,14 +22,11 @@ function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Headers {
     return headers;
 }
 
-function apiFetch(path: string, init: RequestInit = {}, { noStore = false }: { noStore?: boolean } = {}) {
+// _options prevents type errors from existing { noStore: true } calls
+function apiFetch(path: string, init: RequestInit = {}, _options?: { noStore?: boolean }) {
     return fetch(`${BASE_URL}${path}`, {
         ...init,
-        cache: noStore ? "no-store" : init.cache,
-        headers: mergeHeaders(
-            noStore ? NO_STORE_HEADERS : undefined,
-            init.headers
-        ),
+        headers: mergeHeaders(init.headers),
     });
 }
 
@@ -422,66 +415,40 @@ export function saveToken(token: string) {
 export function clearAuth() {
     // Clear from sessionStorage
     sessionStorage.removeItem("auth_token");
-    sessionStorage.removeItem("username");
-    sessionStorage.removeItem("fullName");
-    sessionStorage.removeItem("org_confirmed");
-    sessionStorage.removeItem("org_setup_skipped");
     
     // Clear from localStorage
     localStorage.removeItem("auth_token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("fullName");
-    localStorage.removeItem("org_confirmed");
-    localStorage.removeItem("org_setup_skipped");
 
     // Clear from cookies
     deleteCookie("auth_token");
-    deleteCookie("username");
-    deleteCookie("fullName");
-    deleteCookie("org_confirmed");
-    deleteCookie("org_setup_skipped");
 
     dispatchUserInfoChanged();
 }
 
-export function saveUserInfo(email: string, name: string) {
-    // Save to localStorage/sessionStorage (client-side)
-    localStorage.setItem("username", email);
-    localStorage.setItem("fullName", name);
-    sessionStorage.setItem("username", email);
-    sessionStorage.setItem("fullName", name);
-    
-    // Save to cookies (for middleware)
-    setCookie("username", email, 1); // 1 day expiry
-    setCookie("fullName", name, 1); // 1 day expiry
+// ──────────────────────────────
+// Token-based User Info (No Cache)
+// ──────────────────────────────
 
-    dispatchUserInfoChanged();
-}
-
-export function saveOrgConfirmed() {
-    localStorage.setItem("org_confirmed", "true");
-    sessionStorage.setItem("org_confirmed", "true");
-    setCookie("org_confirmed", "true", 1);
-}
-
-export function saveOrgSetupSkipped() {
-    localStorage.setItem("org_setup_skipped", "true");
-    sessionStorage.setItem("org_setup_skipped", "true");
-    setCookie("org_setup_skipped", "true", 1);
+function getJwtPayload() {
+    const token = getToken();
+    if (!token) return null;
+    try {
+        const payload = token.split('.')[1];
+        if (!payload) return null;
+        return JSON.parse(atob(payload));
+    } catch (e) {
+        return null;
+    }
 }
 
 export function getUserEmail(): string {
-    if (typeof window !== "undefined") {
-        return localStorage.getItem("username") || sessionStorage.getItem("username") || "";
-    }
-    return "";
+    const payload = getJwtPayload();
+    return payload?.email || "";
 }
 
 export function getUserName(): string {
-    if (typeof window !== "undefined") {
-        return localStorage.getItem("fullName") || sessionStorage.getItem("fullName") || "";
-    }
-    return "";
+    const payload = getJwtPayload();
+    return payload?.name || payload?.fullName || "";
 }
 
 export function getStoredUserInfo() {
@@ -490,3 +457,8 @@ export function getStoredUserInfo() {
         name: getUserName(),
     };
 }
+
+// No-ops for removed cache setters to satisfy existing imports
+export function saveUserInfo(email: string, name: string) {}
+export function saveOrgConfirmed() {}
+export function saveOrgSetupSkipped() {}

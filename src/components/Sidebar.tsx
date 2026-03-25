@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { clearAuth, getStoredUserInfo } from "@/lib/api";
+import { clearAuth, getProfile } from "@/lib/api";
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -59,22 +59,28 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const syncUser = () => {
-      const storedUser = getStoredUserInfo();
-      setClientUser({
-        name: user?.name || storedUser.name || "",
-        email: user?.email || storedUser.email || "",
-      });
-      setMounted(true);
+    const syncUser = async () => {
+      try {
+        const res = await getProfile();
+        const profile = res?.data?.profile;
+        if (profile) {
+          setClientUser({
+            name: user?.name || profile.name || "",
+            email: user?.email || profile.email || "",
+          });
+        }
+      } catch (e) {
+        // failed to fetch profile, might be offline or no token
+      } finally {
+        setMounted(true);
+      }
     };
 
     syncUser();
-    window.addEventListener("storage", syncUser);
     window.addEventListener("focus", syncUser);
     window.addEventListener("reflow:user-info-changed", syncUser);
 
     return () => {
-      window.removeEventListener("storage", syncUser);
       window.removeEventListener("focus", syncUser);
       window.removeEventListener("reflow:user-info-changed", syncUser);
     };
