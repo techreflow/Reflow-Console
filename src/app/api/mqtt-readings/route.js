@@ -11,7 +11,7 @@ import {
 // ── Persistent singleton MQTT client ──────────────────────────────
 const globalForMqtt = global;
 let client = globalForMqtt.mqttReadingsClient || null;
-// mqttData[serialId] = { RawCH1..6, _ts: Date.now() }
+// mqttData[serialId] = { RawCH1..6, _ts, _rxTs, _hasPayloadTs }
 let mqttData = globalForMqtt.mqttReadingsData || {};
 let subscribedTopics = globalForMqtt.mqttReadingsTopics || new Set();
 
@@ -86,7 +86,13 @@ function getClient() {
             const parsed = JSON.parse(message.toString());
             // Reconstruct the serialId from topic  e.g. "ABC/12/OUTPUT" → "ABC12"
             const serialId = extractSerialFromTopic(topic);
-            const channelData = { _ts: parsePayloadTimestamp(parsed) };
+            const payloadTs = parsePayloadTimestamp(parsed);
+            const receivedAt = Date.now();
+            const channelData = {
+                _ts: payloadTs ?? receivedAt,
+                _rxTs: receivedAt,
+                _hasPayloadTs: payloadTs !== null,
+            };
             // Dynamically extract channel data using constants
             MQTT_CHANNEL_NAMES.forEach((ch) => {
                 channelData[ch] = parsed[ch] ?? null;
@@ -152,7 +158,8 @@ export async function GET(req) {
 
         // If we already have fresh data (< 5s old), return it immediately
         const cached = mqttData[serialId];
-        if (cached && (Date.now() - cached._ts) < MQTT_POLLING_CONFIG.CACHE_CHECK_INTERVAL) {
+        const cachedTs = typeof cached?._ts === "number" ? cached._ts : NaN;
+        if (cached && Number.isFinite(cachedTs) && (Date.now() - cachedTs) < MQTT_POLLING_CONFIG.CACHE_CHECK_INTERVAL) {
             return NextResponse.json(cached);
         }
 
