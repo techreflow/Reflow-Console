@@ -36,6 +36,10 @@ async function checkDeviceOnline(serialId: string): Promise<boolean> {
     const res = await fetch(`/api/mqtt-readings?serialId=${serialId}`);
     if (!res.ok) return false;
     const data = await res.json();
+    const hasData =
+      [data.RawCH1, data.RawCH2, data.RawCH3, data.RawCH4, data.RawCH5, data.RawCH6].some(
+        (v) => v !== null && v !== undefined
+      );
     const rawTs = data?._ts ?? data?.timestamp ?? data?.createdAt;
     let ts = Number.NaN;
     if (typeof rawTs === "number" && Number.isFinite(rawTs)) {
@@ -50,14 +54,18 @@ async function checkDeviceOnline(serialId: string): Promise<boolean> {
         ts = Date.parse(hasZone ? trimmed : `${trimmed}+05:30`);
       }
     }
+    if (!Number.isFinite(ts) && typeof data?._rxTs === "number" && Number.isFinite(data._rxTs)) {
+      ts = data._rxTs;
+    }
+    if (!Number.isFinite(ts) && hasData) {
+      ts = Date.now();
+    }
     const isFresh = Number.isFinite(ts)
       ? (Date.now() - ts) < POLLING_CONFIG.MQTT_ONLINE_THRESHOLD
       : false;
     return (
       !data.error &&
-      [data.RawCH1, data.RawCH2, data.RawCH3, data.RawCH4, data.RawCH5, data.RawCH6].some(
-        (v) => v !== null && v !== undefined
-      ) &&
+      hasData &&
       isFresh
     );
   } catch {

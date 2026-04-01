@@ -49,7 +49,7 @@ function deriveTrend(
 
 function getPayloadTimestamp(data: Record<string, unknown> | null | undefined): number | null {
     if (!data) return null;
-    const raw = data._ts ?? data.ts ?? data.timestamp ?? data.createdAt;
+    const raw = data._ts ?? data._rxTs ?? data.ts ?? data.timestamp ?? data.createdAt;
 
     if (typeof raw === "number" && Number.isFinite(raw)) {
         return raw < 1e12 ? raw * 1000 : raw;
@@ -119,7 +119,7 @@ export function useMqttDevice(
 
             const hasData = raw.some((v) => v !== null);
             const payloadTs = getPayloadTimestamp(data as Record<string, unknown>);
-            const sampleTs = payloadTs ?? lastDataTs.current;
+            const sampleTs = payloadTs ?? (hasData ? Date.now() : lastDataTs.current);
             const age = sampleTs > 0 ? Date.now() - sampleTs : Number.POSITIVE_INFINITY;
             const isFresh = sampleTs > 0 && age < onlineThresholdMs;
 
@@ -231,8 +231,10 @@ export function useMqttStatus(
                         .map((ch) => data[ch])
                         .some((v) => v !== null && v !== undefined);
                 const payloadTs = getPayloadTimestamp(data as Record<string, unknown>);
-                const isFresh = payloadTs !== null
-                    ? (Date.now() - payloadTs) < onlineThresholdMs
+                const fallbackTs = hasData ? Date.now() : null;
+                const freshnessTs = payloadTs ?? fallbackTs;
+                const isFresh = freshnessTs !== null
+                    ? (Date.now() - freshnessTs) < onlineThresholdMs
                     : false;
                 if (mounted) {
                     setIsOnline(Boolean(hasData && isFresh));

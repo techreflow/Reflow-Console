@@ -175,6 +175,7 @@ export async function GET(req) {
             RawCH5: data.RawCH5 ?? null,
             RawCH6: data.RawCH6 ?? null,
             _ts: data._ts ?? null,
+            _rxTs: data._rxTs ?? null,
         });
     } catch (error) {
         console.error("[MQTT Readings] Error:", error.message);
