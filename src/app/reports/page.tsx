@@ -179,11 +179,8 @@ export default function ReportsPage() {
 
         setExporting(true);
         try {
-            // Send full timestamp bounds for precision
-            const startTimestamp = new Date(startDate).toISOString();
-            const endTimestamp = new Date(endDate + "T23:59:59").toISOString();
-
-            const resData = await exportDeviceData(selectedDevice, startTimestamp, endTimestamp, exportInterval);
+            // The backend expects YYYY-MM-DD format as shown in the API docs
+            const resData = await exportDeviceData(selectedDevice, startDate, endDate, exportInterval);
             
             // Handle array or nested data structures
             let dataRowArray = Array.isArray(resData) ? resData 
