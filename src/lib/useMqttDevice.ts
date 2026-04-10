@@ -92,6 +92,7 @@ interface PresenceCacheEntry {
 }
 
 const OFFLINE_GRACE_MS = Math.max(10_000, POLLING_CONFIG.MQTT_OFFLINE_GRACE_MS ?? 60_000);
+const INITIAL_CHECKING_WINDOW_MS = 30_000;
 const PRESENCE_CACHE_TTL_MS = OFFLINE_GRACE_MS * 2;
 const presenceCache = new Map<string, PresenceCacheEntry>();
 
@@ -121,7 +122,7 @@ function resolvePresence(now: number, mountedAt: number, lastHealthyAt: number):
         return { state: "offline", isOnline: false, checked: true };
     }
 
-    if ((now - mountedAt) < OFFLINE_GRACE_MS) {
+    if ((now - mountedAt) < INITIAL_CHECKING_WINDOW_MS) {
         return { state: "checking", isOnline: false, checked: false };
     }
 

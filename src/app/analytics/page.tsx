@@ -82,6 +82,30 @@ function computeStats(data: ChartRow[], keys: string[]): ChannelStat[] {
     });
 }
 
+function computeYAxisDomain(values: number[], includeDeviationGuides: boolean): [number, number] {
+    if (values.length === 0) return [0, 10];
+
+    let minVal = Math.min(...values);
+    let maxVal = Math.max(...values);
+
+    // Keep ±5% guide lines visible in deviation mode.
+    if (includeDeviationGuides) {
+        minVal = Math.min(minVal, -5);
+        maxVal = Math.max(maxVal, 5);
+    }
+
+    // Prevent flat-line domain collapse.
+    if (minVal === maxVal) {
+        const delta = Math.max(1, Math.abs(minVal) * 0.05);
+        return [minVal - delta, maxVal + delta];
+    }
+
+    // Max-Min style domain: tight bounds from actual data, rounded for readable ticks.
+    const roundedMin = Math.floor(minVal * 10) / 10;
+    const roundedMax = Math.ceil(maxVal * 10) / 10;
+    return [roundedMin, roundedMax];
+}
+
 // Simple status dot component matching the Devices list
 function DeviceStatusDot({ serial }: { serial: string }) {
     const { isOnline, checked } = useMqttStatus(serial, 10000); // Poll every 10s to keep it lightweight
@@ -529,17 +553,11 @@ export default function AnalyticsPage() {
 
     // Chart renderer
     const renderChart = () => {
-        // ── Y-axis domain: 20% of the data range as padding ──
-        // e.g. min=5 max=11 → range=6, padding=1.2 → axis 3.8 – 12.2
+        // ── Y-axis domain: tight max-min bounds (no large extra padding) ──
         const allValues = processedChartData.flatMap(row =>
             activeKeys.map(k => row[k]).filter((v): v is number => typeof v === "number")
         );
-        const dataMin = allValues.length > 0 ? Math.min(...allValues) : 0;
-        const dataMax = allValues.length > 0 ? Math.max(...allValues) : 10;
-        const range = dataMax - dataMin;
-        const padding = range > 0.001 ? range * 0.2 : 1;
-        const yMin = dataMin - padding;
-        const yMax = dataMax + padding;
+        const [yMin, yMax] = computeYAxisDomain(allValues, showDeviation);
 
         // ── X-axis: use numeric ts for proper time spacing, format for display ──
         const xMin = processedChartData.length > 0 ? processedChartData[0].ts as number : undefined;
