@@ -118,6 +118,10 @@ function DeviceStatusDot({ serial }: { serial: string }) {
     );
 }
 
+function uniqueNonEmpty(values: Array<string | undefined | null>): string[] {
+    return Array.from(new Set(values.map((v) => (v || "").trim()).filter(Boolean)));
+}
+
 export default function AnalyticsPage() {
     const email = getUserEmail();
     const fullName = getUserName();
@@ -194,12 +198,40 @@ export default function AnalyticsPage() {
 
         setAllDevices(devices);
         if (devices.length > 0) {
-            setSelectedDevice(devices[0].serialNumber || "");
+            setSelectedDevice(devices[0].id || devices[0].serialNumber || "");
         } else {
             setLoadError("No devices found. Add a device from the Devices page first.");
         }
         setLoading(false);
     }, [cacheLoading, cachedDevices]);
+
+    const selectedDeviceMeta = useMemo(() => {
+        const matched = allDevices.find((d) => {
+            const id = (d.id || "").trim();
+            const sn = (d.serialNumber || "").trim();
+            return (id && id === selectedDevice) || (sn && sn === selectedDevice);
+        });
+        const id = (matched?.id || selectedDevice || "").trim();
+        const serial = (matched?.serialNumber || selectedDevice || "").trim();
+        return {
+            id,
+            serial,
+            name: matched?.name || selectedDevice,
+            exportCandidates: uniqueNonEmpty([id, serial, selectedDevice]),
+        };
+    }, [allDevices, selectedDevice]);
+
+    const fetchExportData = useCallback(async (startTimestamp: string, endTimestamp: string) => {
+        let lastErr: unknown = null;
+        for (const identifier of selectedDeviceMeta.exportCandidates) {
+            try {
+                return await exportDeviceData(identifier, startTimestamp, endTimestamp);
+            } catch (err) {
+                lastErr = err;
+            }
+        }
+        throw lastErr || new Error("Failed to fetch export data");
+    }, [selectedDeviceMeta.exportCandidates]);
 
     // Initialise channel visibility when keys change
     useEffect(() => {
@@ -219,7 +251,7 @@ export default function AnalyticsPage() {
             const startTimestamp = new Date(startDate).toISOString();
             const endTimestamp = new Date(endDate + "T23:59:59").toISOString();
             
-            const resData = await exportDeviceData(selectedDevice, startTimestamp, endTimestamp);
+            const resData = await fetchExportData(startTimestamp, endTimestamp);
             
             // The data might be directly an array, or nested inside `data` or `readings` or `deviceData`
             const dataRowArray = Array.isArray(resData) ? resData 
@@ -280,7 +312,7 @@ export default function AnalyticsPage() {
         } finally {
             setChartLoading(false);
         }
-    }, [selectedDevice, startDate, endDate]);
+    }, [selectedDevice, startDate, endDate, fetchExportData]);
 
     // Auto-fetch on device/date change
     useEffect(() => {
@@ -289,11 +321,11 @@ export default function AnalyticsPage() {
 
     // Load channel config to show human-readable names
     useEffect(() => {
-        if (!selectedDevice) return;
+        if (!selectedDeviceMeta.serial) return;
         const token = getToken();
         async function loadConfig() {
             try {
-                const res = await fetch(`/api/device-config?serialId=${selectedDevice}`, {
+                const res = await fetch(`/api/device-config?serialId=${selectedDeviceMeta.serial}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) return;
@@ -320,17 +352,17 @@ export default function AnalyticsPage() {
             }
         }
         loadConfig();
-    }, [selectedDevice]);
+    }, [selectedDeviceMeta.serial]);
 
     // Live MQTT polling — append to chartData
     useEffect(() => {
-        if (!selectedDevice || !livePolling) {
+        if (!selectedDeviceMeta.serial || !livePolling) {
             if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
             return;
         }
         const fetchLive = async () => {
             try {
-                const res = await fetch(`/api/mqtt-readings?serialId=${selectedDevice}`);
+                const res = await fetch(`/api/mqtt-readings?serialId=${selectedDeviceMeta.serial}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data?.error) return;
@@ -367,7 +399,7 @@ export default function AnalyticsPage() {
         fetchLive();
         liveIntervalRef.current = setInterval(fetchLive, 3000);
         return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current); };
-    }, [selectedDevice, livePolling]);
+    }, [selectedDeviceMeta.serial, livePolling]);
 
     // Toggle live mode
     const toggleLive = () => {
@@ -426,7 +458,7 @@ export default function AnalyticsPage() {
             const startTimestamp = new Date(startDate).toISOString();
             const endTimestamp = new Date(endDate + "T23:59:59").toISOString();
 
-            const resData = await exportDeviceData(selectedDevice, startTimestamp, endTimestamp);
+            const resData = await fetchExportData(startTimestamp, endTimestamp);
             const dataRowArray: Array<Record<string, unknown>> = Array.isArray(resData)
                 ? resData
                 : (resData?.data || resData?.readings || resData?.deviceData || []);
@@ -515,7 +547,7 @@ export default function AnalyticsPage() {
             const a = document.createElement("a");
             a.href = url;
             const suffix = intervalMinutes ? `_${intervalMinutes}min` : "_raw";
-            a.download = `${selectedDevice}_analytics${suffix}.csv`;
+            a.download = `${selectedDeviceMeta.name || selectedDevice}_analytics${suffix}.csv`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
@@ -764,9 +796,9 @@ export default function AnalyticsPage() {
                             >
                                 {selectedDevice ? (
                                     <span className="flex items-center gap-2 truncate">
-                                        <DeviceStatusDot serial={selectedDevice} />
+                                        <DeviceStatusDot serial={selectedDeviceMeta.serial} />
                                         <span className="truncate">
-                                            {allDevices.find((d) => d.serialNumber === selectedDevice)?.name || selectedDevice}
+                                            {selectedDeviceMeta.name || selectedDevice}
                                         </span>
                                     </span>
                                 ) : (
@@ -785,13 +817,14 @@ export default function AnalyticsPage() {
                                             <p className="px-3 py-2 text-sm text-text-muted text-center">No devices found</p>
                                         ) : (
                                             allDevices.map((d) => {
-                                                const sn = d.serialNumber || "";
-                                                const isSelected = selectedDevice === sn;
+                                                const key = d.id || d.serialNumber || "";
+                                                const sn = d.serialNumber || d.id || "";
+                                                const isSelected = selectedDevice === key;
                                                 return (
                                                     <button
-                                                        key={sn}
+                                                        key={key}
                                                         onClick={() => {
-                                                            setSelectedDevice(sn);
+                                                            setSelectedDevice(key);
                                                             setChartData([]);
                                                             setChannelKeys([]);
                                                             setDropdownOpen(false);
