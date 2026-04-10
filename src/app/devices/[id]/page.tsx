@@ -19,6 +19,7 @@ import {
 // Types
 // ─────────────────────────────────────────────
 interface DeviceInfo {
+    id: string;
     name: string;
     serialNumber: string;
     status: string;
@@ -99,6 +100,18 @@ function parseFactorOperation(raw: unknown): FactorOperation {
     return 0;
 }
 
+function firstString(...values: unknown[]): string {
+    for (const value of values) {
+        if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return "";
+}
+
+function getErrorMessage(err: unknown): string {
+    if (err instanceof Error && err.message) return err.message;
+    return String(err || "");
+}
+
 // ─────────────────────────────────────────────
 // Spark chart component
 // ─────────────────────────────────────────────
@@ -176,11 +189,33 @@ export default function DeviceConfigPage() {
             setLoadingDevice(true);
             try {
                 const res = await getDeviceDetails(deviceId);
-                const d = res?.data?.device || res?.device || res?.data || res;
+                const payload = res?.data ?? res ?? {};
+                const wrapper = (payload && typeof payload === "object") ? payload : {};
+                const d = wrapper?.device || res?.device || wrapper;
                 if (d) {
+                    const serial = firstString(
+                        d.serialNumber,
+                        d.serial_no,
+                        wrapper.serialNumber,
+                        wrapper.serial_no,
+                        deviceId
+                    );
+                    const resolvedDeviceId = firstString(
+                        d.deviceId,
+                        d.device_id,
+                        d.id,
+                        d._id,
+                        wrapper.deviceId,
+                        wrapper.device_id,
+                        wrapper.id,
+                        wrapper._id,
+                        deviceId
+                    );
+
                     setDevice({
-                        name: d.name || d.serialNumber || deviceId,
-                        serialNumber: d.serialNumber || d.serial_no || deviceId,
+                        id: resolvedDeviceId,
+                        name: d.name || serial || deviceId,
+                        serialNumber: serial || deviceId,
                         status: d.status || "unknown",
                         lastSeen: formatLastSeen(d.lastSeen || d.updatedAt),
                         description: d.description || "",
@@ -384,10 +419,34 @@ export default function DeviceConfigPage() {
         if (!confirm("Are you sure you want to delete this device? This action cannot be undone.")) return;
         try {
             const { deleteDevice } = await import("@/lib/api");
-            await deleteDevice(deviceId);
-            router.push("/devices");
-        } catch {
-            alert("Failed to delete device");
+            const deleteCandidates = Array.from(new Set(
+                [device?.id, deviceId, device?.serialNumber]
+                    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+                    .map((value) => value.trim())
+            ));
+
+            let lastError: unknown = null;
+            for (let i = 0; i < deleteCandidates.length; i++) {
+                const candidate = deleteCandidates[i];
+                try {
+                    await deleteDevice(candidate);
+                    router.push("/devices");
+                    return;
+                } catch (err) {
+                    lastError = err;
+                    const msg = getErrorMessage(err).toLowerCase();
+                    const isNotFound = msg.includes("404") || msg.includes("not found");
+                    const hasMoreCandidates = i < deleteCandidates.length - 1;
+                    if (!(isNotFound && hasMoreCandidates)) {
+                        throw err;
+                    }
+                }
+            }
+            throw lastError ?? new Error("Failed to delete device");
+        } catch (err) {
+            console.error("Failed to delete device:", err);
+            const msg = getErrorMessage(err);
+            alert(msg || "Failed to delete device");
         }
     };
 

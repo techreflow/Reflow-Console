@@ -100,17 +100,30 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
             // 1. Unwrap { device: {...} } wrapper if present
             // 2. Ensure serial_no / serialNumber are at top level
             const normalizeDevice = (raw: any, projectName: string, projectId: string): Device => {
-                const d = raw?.device || raw; // unwrap wrapper
+                const wrapper = (raw && typeof raw === "object") ? raw : {};
+                const nested = (wrapper as any).device;
+                const d = (nested && typeof nested === "object") ? nested : wrapper;
+
                 const serial =
                     d.serial_no || d.serialNumber || d.serialNo || d.serial_number ||
-                    d.id || d._id || "";
+                    wrapper.serial_no || wrapper.serialNumber || wrapper.serialNo || wrapper.serial_number ||
+                    "";
+
+                // Prefer canonical device IDs from the device object first.
+                // Wrapper-level IDs are used only as late fallbacks because some APIs wrap device rows.
+                const canonicalId =
+                    d.deviceId || d.device_id || d.id || d._id ||
+                    wrapper.deviceId || wrapper.device_id ||
+                    wrapper.id || wrapper._id ||
+                    serial;
+
                 return {
-                    id: d.id || d._id || serial,
-                    _id: d._id || d.id,
+                    id: canonicalId,
+                    _id: d._id || d.id || wrapper._id || wrapper.id || canonicalId,
                     name: d.name || serial || "Unnamed",
                     serial_no: serial,
                     serialNumber: serial,
-                    description: d.description,
+                    description: d.description || wrapper.description,
                     projectName,
                     projectId,
                 };
