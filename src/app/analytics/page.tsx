@@ -233,11 +233,16 @@ export default function AnalyticsPage() {
         throw lastErr || new Error("Failed to fetch export data");
     }, [selectedDeviceMeta.exportCandidates]);
 
-    // Initialise channel visibility when keys change
+    // Keep user-selected channel visibility stable across date-range reloads.
+    // Existing keys preserve prior toggle state; newly discovered keys default to visible.
     useEffect(() => {
-        const init: Record<string, boolean> = {};
-        channelKeys.forEach((k) => { init[k] = true; });
-        setVisibleChannels(init);
+        setVisibleChannels((prev) => {
+            const next: Record<string, boolean> = {};
+            channelKeys.forEach((k) => {
+                next[k] = prev[k] ?? true;
+            });
+            return next;
+        });
     }, [channelKeys]);
 
     // Fetch historical data
