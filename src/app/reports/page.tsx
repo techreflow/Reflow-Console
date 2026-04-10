@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -59,6 +59,10 @@ function DeviceStatusDot({ serial }: { serial: string }) {
             title={isOnline ? "Online" : "Offline"}
         />
     );
+}
+
+function uniqueNonEmpty(values: Array<string | undefined | null>): string[] {
+    return Array.from(new Set(values.map((v) => (v || "").trim()).filter(Boolean)));
 }
 
 export default function ReportsPage() {
@@ -134,35 +138,80 @@ export default function ReportsPage() {
 
         setAllDevices(devices);
         if (devices.length > 0) {
-            const first = devices[0].serialNumber || "";
+            const first = devices[0].id || devices[0].serialNumber || "";
             setSelectedDevice(first);
-            setScheduleDevice(first);
+            setScheduleDevice(devices[0].serialNumber || first);
         }
         setLoading(false);
     }, [cacheLoading, cachedProjects, cachedDevices]);
 
+    const selectedDeviceMeta = useMemo(() => {
+        const matched = allDevices.find((d) => {
+            const id = (d.id || "").trim();
+            const sn = (d.serialNumber || "").trim();
+            return (id && id === selectedDevice) || (sn && sn === selectedDevice);
+        });
+
+        const id = (matched?.id || selectedDevice || "").trim();
+        const serial = (matched?.serialNumber || selectedDevice || "").trim();
+        return {
+            id,
+            serial,
+            name: matched?.name || selectedDevice,
+            exportCandidates: uniqueNonEmpty([id, serial, selectedDevice]),
+        };
+    }, [allDevices, selectedDevice]);
+
+    const fetchExportData = useCallback(async (start: string, end: string, interval?: string) => {
+        let lastErr: unknown = null;
+        for (const identifier of selectedDeviceMeta.exportCandidates) {
+            try {
+                return await exportDeviceData(identifier, start, end, interval);
+            } catch (err) {
+                lastErr = err;
+            }
+        }
+        throw lastErr || new Error("Failed to export device data");
+    }, [selectedDeviceMeta.exportCandidates]);
+
+    const scheduleDeviceMeta = useMemo(() => {
+        const matched = allDevices.find((d) => {
+            const id = (d.id || "").trim();
+            const sn = (d.serialNumber || "").trim();
+            return (id && id === scheduleDevice) || (sn && sn === scheduleDevice);
+        });
+        const id = (matched?.id || scheduleDevice || "").trim();
+        const serial = (matched?.serialNumber || scheduleDevice || "").trim();
+        return {
+            id,
+            serial,
+            name: matched?.name || scheduleDevice,
+            candidates: uniqueNonEmpty([serial, id, scheduleDevice]),
+        };
+    }, [allDevices, scheduleDevice]);
+
     // Load schedules for selected device
     useEffect(() => {
-        if (!selectedDevice) return;
-        loadSchedule(selectedDevice);
-    }, [selectedDevice]);
+        if (!scheduleDeviceMeta.id && !scheduleDeviceMeta.serial) return;
+        loadSchedule(scheduleDeviceMeta.candidates);
+    }, [scheduleDeviceMeta.id, scheduleDeviceMeta.serial, scheduleDeviceMeta.candidates]);
 
-    async function loadSchedule(deviceId: string) {
+    async function loadSchedule(deviceIdentifiers: string[]) {
         setLoadingSchedules(true);
         try {
-            const res = await fetch("/api/email-config/get-device-info", {
-                headers: { device: deviceId },
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data && !data.message) {
-                    setSchedules([data]);
-                } else {
-                    setSchedules([]);
+            for (const deviceId of deviceIdentifiers) {
+                const res = await fetch("/api/email-config/get-device-info", {
+                    headers: { device: deviceId },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && !data.message) {
+                        setSchedules([data]);
+                        return;
+                    }
                 }
-            } else {
-                setSchedules([]);
             }
+            setSchedules([]);
         } catch {
             setSchedules([]);
         } finally {
@@ -191,7 +240,7 @@ export default function ReportsPage() {
             // Convert "1 min" -> "1min", "5 mins" -> "5min"
             const backendInterval = exportInterval.replace(/\s+/g, '').replace(/s$/, '');
 
-            const resData = await exportDeviceData(selectedDevice, backendStartDate, backendEndDate, backendInterval);
+            const resData = await fetchExportData(backendStartDate, backendEndDate, backendInterval);
             
             // Handle array or nested data structures
             let dataRowArray = Array.isArray(resData) ? resData 
@@ -228,7 +277,7 @@ export default function ReportsPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${selectedDevice}_${startDate}_to_${endDate}.csv`;
+        a.download = `${selectedDeviceMeta.name || selectedDevice}_${startDate}_to_${endDate}.csv`;
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -242,7 +291,7 @@ export default function ReportsPage() {
             const { default: jsPDF } = await import("jspdf");
             const doc = new jsPDF();
             doc.setFontSize(16);
-            doc.text(`Device Report: ${selectedDevice}`, 14, 20);
+            doc.text(`Device Report: ${selectedDeviceMeta.name || selectedDevice}`, 14, 20);
             doc.setFontSize(10);
             doc.text(`${startDate} to ${endDate}`, 14, 28);
             doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
@@ -274,7 +323,7 @@ export default function ReportsPage() {
                 doc.text(`... and ${data.length - 100} more rows`, 14, y + 5);
             }
 
-            doc.save(`${selectedDevice}_report.pdf`);
+            doc.save(`${selectedDeviceMeta.name || selectedDevice}_report.pdf`);
         } catch (err) {
             console.error("PDF generation error:", err);
             alert("Failed to generate PDF");
@@ -293,14 +342,14 @@ export default function ReportsPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    device: scheduleDevice,
+                    device: scheduleDeviceMeta.serial || scheduleDeviceMeta.id || scheduleDevice,
                     email: scheduleEmail,
                     frequency: scheduleFrequency,
                     reportType: exportFormat,
                 }),
             });
             if (res.ok) {
-                await loadSchedule(scheduleDevice);
+                await loadSchedule(scheduleDeviceMeta.candidates);
                 setScheduleEmail("");
             }
         } catch (err) {
@@ -383,9 +432,9 @@ export default function ReportsPage() {
                                 >
                                     {selectedDevice ? (
                                         <span className="flex items-center gap-2 truncate">
-                                            <DeviceStatusDot serial={selectedDevice} />
+                                            <DeviceStatusDot serial={selectedDeviceMeta.serial} />
                                             <span className="truncate">
-                                                {allDevices.find((d) => d.serialNumber === selectedDevice)?.name || selectedDevice}
+                                                {selectedDeviceMeta.name || selectedDevice}
                                             </span>
                                         </span>
                                     ) : (
@@ -404,13 +453,14 @@ export default function ReportsPage() {
                                                 <p className="px-3 py-2 text-sm text-text-muted text-center">No devices found</p>
                                             ) : (
                                                 allDevices.map((d: Device) => {
-                                                    const sn = d.serialNumber || "";
-                                                    const isSelected = selectedDevice === sn;
+                                                    const key = d.id || d.serialNumber || "";
+                                                    const sn = d.serialNumber || d.id || "";
+                                                    const isSelected = selectedDevice === key;
                                                     return (
                                                         <button
-                                                            key={sn}
+                                                            key={key}
                                                             onClick={() => {
-                                                                setSelectedDevice(sn);
+                                                                setSelectedDevice(key);
                                                                 setExportDropdownOpen(false);
                                                             }}
                                                             className={`w-full flex items-center justify-between px-3 py-2 text-sm transition-colors ${
@@ -596,9 +646,9 @@ export default function ReportsPage() {
                                 >
                                     {scheduleDevice ? (
                                         <span className="flex items-center gap-2 truncate">
-                                            <DeviceStatusDot serial={scheduleDevice} />
+                                            <DeviceStatusDot serial={scheduleDeviceMeta.serial} />
                                             <span className="truncate">
-                                                {allDevices.find((d) => d.serialNumber === scheduleDevice)?.name || scheduleDevice}
+                                                {scheduleDeviceMeta.name || scheduleDevice}
                                             </span>
                                         </span>
                                     ) : (
@@ -617,13 +667,14 @@ export default function ReportsPage() {
                                                 <p className="px-3 py-2 text-sm text-text-muted text-center">No devices found</p>
                                             ) : (
                                                 allDevices.map((d: Device) => {
-                                                    const sn = d.serialNumber || "";
-                                                    const isSelected = scheduleDevice === sn;
+                                                    const key = d.id || d.serialNumber || "";
+                                                    const sn = d.serialNumber || d.id || "";
+                                                    const isSelected = scheduleDevice === key;
                                                     return (
                                                         <button
-                                                            key={sn}
+                                                            key={key}
                                                             onClick={() => {
-                                                                setScheduleDevice(sn);
+                                                                setScheduleDevice(key);
                                                                 setScheduleDropdownOpen(false);
                                                             }}
                                                             className={`w-full flex items-center justify-between px-3 py-2 text-sm transition-colors ${
