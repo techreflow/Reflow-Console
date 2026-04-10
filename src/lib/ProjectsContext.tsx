@@ -107,6 +107,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
                 const serial =
                     d.serial_no || d.serialNumber || d.serialNo || d.serial_number ||
                     wrapper.serial_no || wrapper.serialNumber || wrapper.serialNo || wrapper.serial_number ||
+                    d.id || d._id ||
+                    wrapper.id || wrapper._id ||
                     "";
 
                 // Prefer canonical device IDs from the device object first.
