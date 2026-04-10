@@ -48,9 +48,27 @@ const COLORS = CHART_CONFIG.COLORS;
 const CHART_TYPES = CHART_CONFIG.CHART_TYPES;
 type ChartType = typeof CHART_TYPES[number];
 
+function getChannelColor(key: string): string {
+    const normalized = String(key || "").trim();
+    const suffixNum = normalized.match(/(\d+)$/);
+    if (suffixNum) {
+        const idx = Number.parseInt(suffixNum[1] || "1", 10);
+        if (Number.isFinite(idx) && idx > 0) {
+            return COLORS[(idx - 1) % COLORS.length] || COLORS[0];
+        }
+    }
+
+    // Stable fallback for non-numbered channel keys.
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+        hash = ((hash * 31) + normalized.charCodeAt(i)) >>> 0;
+    }
+    return COLORS[hash % COLORS.length] || COLORS[0];
+}
+
 // ── Per-channel stat computation ─────────────────────────────────
 function computeStats(data: ChartRow[], keys: string[]): ChannelStat[] {
-    return keys.map((key, i) => {
+    return keys.map((key) => {
         const vals = data.map((r) => r[key]).filter((v): v is number => typeof v === "number");
         return {
             key,
@@ -59,7 +77,7 @@ function computeStats(data: ChartRow[], keys: string[]): ChannelStat[] {
             min: vals.length > 0 ? Math.min(...vals) : null,
             max: vals.length > 0 ? Math.max(...vals) : null,
             avg: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null,
-            color: COLORS[i % COLORS.length],
+            color: getChannelColor(key),
         };
     });
 }
@@ -591,8 +609,8 @@ export default function AnalyticsPage() {
             return (
                 <BarChart {...sharedProps}>
                     {grid}{xAxis}{yAxis}{tooltip}{legend}{idealLines}
-                    {activeKeys.map((key, i) => (
-                        <Bar key={key} dataKey={key} name={channelConfig[key] || key} fill={COLORS[i % COLORS.length]} opacity={0.85} radius={[3,3,0,0]} />
+                    {activeKeys.map((key) => (
+                        <Bar key={key} dataKey={key} name={channelConfig[key] || key} fill={getChannelColor(key)} opacity={0.85} radius={[3,3,0,0]} />
                     ))}
                 </BarChart>
             );
@@ -601,18 +619,18 @@ export default function AnalyticsPage() {
             return (
                 <AreaChart {...sharedProps}>
                     <defs>
-                        {activeKeys.map((key, i) => (
+                        {activeKeys.map((key) => (
                             <linearGradient key={key} id={`ag-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.25} />
-                                <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0} />
+                                <stop offset="5%" stopColor={getChannelColor(key)} stopOpacity={0.25} />
+                                <stop offset="95%" stopColor={getChannelColor(key)} stopOpacity={0} />
                             </linearGradient>
                         ))}
                     </defs>
                     {grid}{xAxis}{yAxis}{tooltip}{legend}{idealLines}
-                    {activeKeys.map((key, i) => (
+                    {activeKeys.map((key) => (
                         <Area
                             key={key} type="monotone" dataKey={key} name={channelConfig[key] || key}
-                            stroke={COLORS[i % COLORS.length]} strokeWidth={2}
+                            stroke={getChannelColor(key)} strokeWidth={2}
                             fill={`url(#ag-${key})`} dot={false} activeDot={{ r: 4 }}
                             connectNulls
                             isAnimationActive={false}
@@ -625,10 +643,10 @@ export default function AnalyticsPage() {
         return (
             <LineChart {...sharedProps}>
                 {grid}{xAxis}{yAxis}{tooltip}{legend}{idealLines}
-                {activeKeys.map((key, i) => (
+                {activeKeys.map((key) => (
                     <Line
                         key={key} type="monotone" dataKey={key} name={channelConfig[key] || key}
-                        stroke={COLORS[i % COLORS.length]} strokeWidth={2}
+                        stroke={getChannelColor(key)} strokeWidth={2}
                         dot={false} activeDot={{ r: 4 }}
                         connectNulls
                         isAnimationActive={false}
@@ -857,7 +875,7 @@ export default function AnalyticsPage() {
                         className="flex items-center gap-2 flex-wrap"
                     >
                         <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Channels:</span>
-                        {channelKeys.map((key, i) => (
+                        {channelKeys.map((key) => (
                             <button
                                 key={key}
                                 onClick={() => toggleChannel(key)}
@@ -866,7 +884,7 @@ export default function AnalyticsPage() {
                                         ? "border-transparent text-white"
                                         : "border-border-subtle bg-white text-text-muted"
                                 }`}
-                                style={visibleChannels[key] ? { backgroundColor: COLORS[i % COLORS.length] } : {}}
+                                style={visibleChannels[key] ? { backgroundColor: getChannelColor(key) } : {}}
                             >
                                 {channelConfig[key] || key}
                             </button>

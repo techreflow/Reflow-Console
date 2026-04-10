@@ -234,10 +234,18 @@ export default function DeviceConfigPage() {
                     const rawMax = toFiniteNumber(cfg[`MAX${i}`], 100);
                     const { min, max } = normalizeRange(rawMin, rawMax);
                     const thresholdMin = toNullableNumber(
-                        cfg[`THMIN${i}`] ?? cfg[`THRESH_MIN${i}`] ?? cfg[`THRMIN${i}`] ?? cfg[`TMIN${i}`]
+                        cfg[`ALERTMIN${i}`] ??
+                        cfg[`THMIN${i}`] ??
+                        cfg[`THRESH_MIN${i}`] ??
+                        cfg[`THRMIN${i}`] ??
+                        cfg[`TMIN${i}`]
                     );
                     const thresholdMax = toNullableNumber(
-                        cfg[`THMAX${i}`] ?? cfg[`THRESH_MAX${i}`] ?? cfg[`THRMAX${i}`] ?? cfg[`TMAX${i}`]
+                        cfg[`ALERTMAX${i}`] ??
+                        cfg[`THMAX${i}`] ??
+                        cfg[`THRESH_MAX${i}`] ??
+                        cfg[`THRMAX${i}`] ??
+                        cfg[`TMAX${i}`]
                     );
                     updated[`CH${i}`] = {
                         name: String(cfg[`SNO${i}`] ?? `Channel ${i}`).trim(),
@@ -274,9 +282,17 @@ export default function DeviceConfigPage() {
                 const parsedIndex = Number.parseInt(key.replace("CH", ""), 10);
                 const i = Number.isFinite(parsedIndex) ? parsedIndex : idx + 1;
                 const { min, max } = normalizeRange(toFiniteNumber(ch.min, 0), toFiniteNumber(ch.max, 0));
+                const rawAlertMin = ch.thresholdMin ?? min;
+                const rawAlertMax = ch.thresholdMax ?? max;
+                const { min: alertMin, max: alertMax } = normalizeRange(
+                    clampWithin(rawAlertMin, min, max),
+                    clampWithin(rawAlertMax, min, max)
+                );
                 config[`SNO${i}`] = ch.name;
                 config[`MIN${i}`] = min;
                 config[`MAX${i}`] = max;
+                config[`ALERTMIN${i}`] = alertMin;
+                config[`ALERTMAX${i}`] = alertMax;
                 config[`FAC${i}`] = parseFactorOperation(ch.fac);
                 config[`CAL${i}`] = toFiniteNumber(ch.cal, 0);
             });
@@ -563,9 +579,9 @@ export default function DeviceConfigPage() {
                                                         <tr>
                                                             <th className="px-4 py-3 font-bold border-b border-border-subtle">Channel Name (SNO)</th>
                                                             <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Range (MIN – MAX)</th>
+                                                            <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Alert Threshold (MIN – MAX)</th>
                                                             <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Factor (Operation)</th>
                                                             <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Calibration (CAL)</th>
-                                                            <th className="px-4 py-3 font-bold text-center border-b border-border-subtle">Threshold (MIN – MAX)</th>
                                                             <th className="px-4 py-3 font-bold text-right border-b border-border-subtle">Raw Value</th>
                                                             <th className="px-4 py-3 font-bold text-right border-b border-border-subtle">Calibrated Value</th>
                                                         </tr>
@@ -613,6 +629,25 @@ export default function DeviceConfigPage() {
                                                                         </div>
                                                                     </td>
                                                                     <td className="px-4 py-3">
+                                                                        <div className="flex items-center justify-center gap-2">
+                                                                            <input
+                                                                                type="number"
+                                                                                value={ch.thresholdMin ?? ""}
+                                                                                onChange={(e) => handleThresholdChange(key, "thresholdMin", e.target.value)}
+                                                                                className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
+                                                                                placeholder="Min"
+                                                                            />
+                                                                            <span className="text-text-muted font-bold">–</span>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={ch.thresholdMax ?? ""}
+                                                                                onChange={(e) => handleThresholdChange(key, "thresholdMax", e.target.value)}
+                                                                                className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
+                                                                                placeholder="Max"
+                                                                            />
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
                                                                         <div className="flex justify-center">
                                                                             <select
                                                                                 value={ch.fac}
@@ -641,25 +676,6 @@ export default function DeviceConfigPage() {
                                                                                     cal: toFiniteNumber(e.target.value, current.cal),
                                                                                 }))}
                                                                                 className="w-24 px-2 py-1.5 rounded border border-border-subtle text-center text-sm font-bold text-primary focus:border-primary outline-none"
-                                                                            />
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        <div className="flex items-center justify-center gap-2">
-                                                                            <input
-                                                                                type="number"
-                                                                                value={ch.thresholdMin ?? ""}
-                                                                                onChange={(e) => handleThresholdChange(key, "thresholdMin", e.target.value)}
-                                                                                className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
-                                                                                placeholder="Min"
-                                                                            />
-                                                                            <span className="text-text-muted font-bold">–</span>
-                                                                            <input
-                                                                                type="number"
-                                                                                value={ch.thresholdMax ?? ""}
-                                                                                onChange={(e) => handleThresholdChange(key, "thresholdMax", e.target.value)}
-                                                                                className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
-                                                                                placeholder="Max"
                                                                             />
                                                                         </div>
                                                                     </td>
@@ -696,7 +712,7 @@ export default function DeviceConfigPage() {
                                         <div className="flex items-start gap-2 p-3 mt-3 rounded-lg bg-primary/5 border border-primary/10">
                                             <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                                             <p className="text-xs text-text-muted">
-                                                Publish sends SNO, range, factor-operation and calibration fields. Threshold values are editable here but not published yet.
+                                                Publish sends SNO, range, alert thresholds (`ALERTMINx/ALERTMAXx`), factor-operation and calibration fields.
                                             </p>
                                         </div>
                                     )}
