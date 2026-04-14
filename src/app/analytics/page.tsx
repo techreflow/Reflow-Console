@@ -221,11 +221,11 @@ export default function AnalyticsPage() {
         };
     }, [allDevices, selectedDevice]);
 
-    const fetchExportData = useCallback(async (startTimestamp: string, endTimestamp: string) => {
+    const fetchExportData = useCallback(async (startTimestamp: string, endTimestamp: string, interval?: string) => {
         let lastErr: unknown = null;
         for (const identifier of selectedDeviceMeta.exportCandidates) {
             try {
-                return await exportDeviceData(identifier, startTimestamp, endTimestamp);
+                return await exportDeviceData(identifier, startTimestamp, endTimestamp, interval);
             } catch (err) {
                 lastErr = err;
             }
@@ -451,101 +451,27 @@ export default function AnalyticsPage() {
         doc.save(`${selectedDevice}_analytics.pdf`);
     }
 
-    // Export as CSV with dynamic intervals
-    // Always fetches fresh raw data from the backend to ensure correct re-bucketing
+    // Export as CSV using the same backend interval API as Reports.
     const [csvExporting, setCsvExporting] = useState(false);
 
     async function exportCSV(intervalMinutes?: number) {
         if (!selectedDevice || !startDate || !endDate) return;
         setCsvExporting(true);
         try {
-            // Always fetch raw data from backend for correct interval bucketing
-            const startTimestamp = new Date(startDate).toISOString();
-            const endTimestamp = new Date(endDate + "T23:59:59").toISOString();
+            const backendStartDate = startDate;
+            const backendEndDate = endDate;
+            const backendInterval = intervalMinutes ? `${intervalMinutes}min` : undefined;
 
-            const resData = await fetchExportData(startTimestamp, endTimestamp);
+            const resData = await fetchExportData(backendStartDate, backendEndDate, backendInterval);
             const dataRowArray: Array<Record<string, unknown>> = Array.isArray(resData)
                 ? resData
                 : (resData?.data || resData?.readings || resData?.deviceData || []);
 
             if (!dataRowArray || dataRowArray.length === 0) return;
 
-            // Build numeric keys from raw data
-            const candidateKeys = dataRowArray.flatMap(row =>
-                Object.keys(row).filter(k => k !== "timestamp" && k !== "createdAt" && !k.startsWith("_"))
-            );
-            const rawKeys: string[] = Array.from(new Set<string>(candidateKeys));
-
-            // Parse rows with timestamps
-            interface RawRow { ts: number; [key: string]: string | number | undefined; }
-            const rawRows: RawRow[] = dataRowArray
-                .map((row): RawRow | null => {
-                    const tsRaw = row.timestamp ?? row.createdAt;
-                    const ts = new Date(String(tsRaw || "")).getTime();
-                    if (!Number.isFinite(ts)) return null;
-                    const r: RawRow = { ts };
-                    rawKeys.forEach(k => {
-                        const v = row[k];
-                        const parsed = typeof v === "number" ? v : Number(String(v));
-                        if (Number.isFinite(parsed)) r[k] = parsed;
-                    });
-                    return r;
-                })
-                .filter((r): r is RawRow => Boolean(r))
-                .sort((a, b) => a.ts - b.ts);
-
-            const numericKeys = rawKeys.filter(k => rawRows.some(r => typeof r[k] === "number"));
-
-            // Apply interval bucketing if requested
-            let exportRows: Array<Record<string, string | number | undefined>>;
-            if (intervalMinutes) {
-                const ms = intervalMinutes * 60 * 1000;
-                const buckets: Record<number, { ts: number; count: number; [key: string]: number; }> = {};
-                rawRows.forEach(row => {
-                    const bucketTs = Math.floor(row.ts / ms) * ms;
-                    if (!buckets[bucketTs]) {
-                        buckets[bucketTs] = { ts: bucketTs, count: 0 };
-                    }
-                    const b = buckets[bucketTs];
-                    b.count++;
-                    numericKeys.forEach(k => {
-                        if (typeof row[k] === "number") {
-                            b[k] = (b[k] || 0) + (row[k] as number);
-                        }
-                    });
-                });
-                exportRows = Object.values(buckets)
-                    .sort((a, b) => a.ts - b.ts)
-                    .map(b => {
-                        const out: Record<string, string | number | undefined> = {
-                            time: new Date(b.ts).toLocaleString("en-IN", {
-                                day: "2-digit", month: "short", year: "numeric",
-                                hour: "2-digit", minute: "2-digit",
-                            }),
-                        };
-                        numericKeys.forEach(k => {
-                            if (b[k] !== undefined) out[k] = Number((b[k] / b.count).toFixed(2));
-                        });
-                        return out;
-                    });
-            } else {
-                // Raw export — use actual timestamp
-                exportRows = rawRows.map(row => {
-                    const out: Record<string, string | number | undefined> = {
-                        time: new Date(row.ts).toLocaleString("en-IN", {
-                            day: "2-digit", month: "short", year: "numeric",
-                            hour: "2-digit", minute: "2-digit", second: "2-digit",
-                        }),
-                    };
-                    numericKeys.forEach(k => { out[k] = row[k]; });
-                    return out;
-                });
-            }
-
-            const displayHeaders = ["time", ...numericKeys.map(k => channelConfig[k] || k)];
-            const rows = exportRows.map(row =>
-                ["time", ...numericKeys].map(h => row[h] !== undefined ? row[h] : "").join(",")
-            );
+            const headers = Object.keys(dataRowArray[0]);
+            const displayHeaders = headers.map((h) => channelConfig[h] || h);
+            const rows = dataRowArray.map((row) => headers.map((h) => row[h] ?? "").join(","));
             const csv = [displayHeaders.join(","), ...rows].join("\n");
             const blob = new Blob([csv], { type: "text/csv" });
             const url = URL.createObjectURL(blob);

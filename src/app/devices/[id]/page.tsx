@@ -101,11 +101,16 @@ function parseFactorOperation(raw: unknown): FactorOperation {
     return 0;
 }
 
+function roundToOneDecimal(value: number): number {
+    return Number(value.toFixed(1));
+}
+
 function sanitizeCalibrationValue(value: number, fac: FactorOperation): number {
+    const rounded = roundToOneDecimal(value);
     if (fac === 3) {
-        return value > 0 ? value : 0.01;
+        return rounded > 0 ? rounded : 0.1;
     }
-    return value;
+    return rounded;
 }
 
 function computeLocalCalibratedValue(rawValue: unknown, fac: FactorOperation, cal: number): number | null {
@@ -785,8 +790,8 @@ export default function DeviceConfigPage() {
                                                                         <div className="flex justify-center">
                                                                             <input
                                                                                 type="number"
-                                                                                step="0.01"
-                                                                                min={ch.fac === 3 ? 0.01 : undefined}
+                                                                                step="0.1"
+                                                                                min={ch.fac === 3 ? 0.1 : undefined}
                                                                                 value={ch.cal}
                                                                                 onChange={(e) => updateChannelCalibration(key, (current) => ({
                                                                                     ...current,
@@ -813,7 +818,7 @@ export default function DeviceConfigPage() {
                                                                     </td>
                                                                     <td className="px-4 py-3 text-right">
                                                                         <span className="font-mono font-black text-text-primary bg-surface-muted px-2 py-1 rounded text-sm">
-                                                                            {calVal !== null && calVal !== undefined ? Number(calVal).toFixed(2) : "—"}
+                                                                            {calVal !== null && calVal !== undefined ? Number(calVal).toFixed(1) : "—"}
                                                                         </span>
                                                                     </td>
                                                                 </tr>
