@@ -275,6 +275,10 @@ export default function DeviceConfigPage() {
         () => Object.values(calibration).some((ch) => ch.fac === 3 && Number(ch.cal) <= 0),
         [calibration]
     );
+    const hasIncompleteThresholds = useMemo(
+        () => Object.values(calibration).some((ch) => ch.thresholdMin === null || ch.thresholdMax === null),
+        [calibration]
+    );
 
     // ── Load calibration config from backend ──
     useEffect(() => {
@@ -348,6 +352,10 @@ export default function DeviceConfigPage() {
     // ── Save calibration to backend ───────────
     const handleSaveCalibration = async () => {
         if (!device?.serialNumber) return;
+        if (hasIncompleteThresholds) {
+            alert("Alert Threshold Min and Max cannot be empty.");
+            return;
+        }
         if (hasInvalidDivisionCalibration) {
             alert("Division operation requires CAL greater than 0.");
             return;
@@ -457,6 +465,22 @@ export default function DeviceConfigPage() {
             if (thresholdMin !== null && thresholdMax !== null && thresholdMin > thresholdMax) {
                 if (field === "thresholdMin") thresholdMax = thresholdMin;
                 else thresholdMin = thresholdMax;
+            }
+
+            return { ...current, thresholdMin, thresholdMax };
+        });
+    };
+
+    const handleThresholdBlur = (key: string) => {
+        updateChannelCalibration(key, (current) => {
+            let thresholdMin = current.thresholdMin ?? current.min;
+            let thresholdMax = current.thresholdMax ?? current.max;
+
+            thresholdMin = clampWithin(thresholdMin, current.min, current.max);
+            thresholdMax = clampWithin(thresholdMax, current.min, current.max);
+
+            if (thresholdMin > thresholdMax) {
+                thresholdMax = thresholdMin;
             }
 
             return { ...current, thresholdMin, thresholdMax };
@@ -751,6 +775,7 @@ export default function DeviceConfigPage() {
                                                                                 type="number"
                                                                                 value={ch.thresholdMin ?? ""}
                                                                                 onChange={(e) => handleThresholdChange(key, "thresholdMin", e.target.value)}
+                                                                                onBlur={() => handleThresholdBlur(key)}
                                                                                 className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
                                                                                 placeholder="Min"
                                                                             />
@@ -759,6 +784,7 @@ export default function DeviceConfigPage() {
                                                                                 type="number"
                                                                                 value={ch.thresholdMax ?? ""}
                                                                                 onChange={(e) => handleThresholdChange(key, "thresholdMax", e.target.value)}
+                                                                                onBlur={() => handleThresholdBlur(key)}
                                                                                 className={`w-20 px-2 py-1.5 rounded border text-center text-sm font-mono focus:border-primary outline-none ${thresholdInvalid ? "border-red-300" : "border-border-subtle"}`}
                                                                                 placeholder="Max"
                                                                             />
@@ -865,7 +891,13 @@ export default function DeviceConfigPage() {
                                 </button>
                                 <button
                                     onClick={handleSaveCalibration}
-                                    disabled={savingConfig || configLoading || Object.keys(calibration).length === 0 || hasInvalidDivisionCalibration}
+                                    disabled={
+                                        savingConfig ||
+                                        configLoading ||
+                                        Object.keys(calibration).length === 0 ||
+                                        hasInvalidDivisionCalibration ||
+                                        hasIncompleteThresholds
+                                    }
                                     className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {savingConfig ? (
