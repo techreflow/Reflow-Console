@@ -1025,7 +1025,7 @@ export default function DeviceConfigPage() {
                             <div>
                                 <div className="flex justify-between text-xs mb-1">
                                     <span className="text-text-muted">Message Rate</span>
-                                    <span className="font-semibold text-text-primary">{msgRate} / 12 msg/min</span>
+                                    <span className="font-semibold text-text-primary">{msgRate} msg/min</span>
                                 </div>
                                 <div className="w-full h-2 bg-surface-muted rounded-full overflow-hidden">
                                     <div

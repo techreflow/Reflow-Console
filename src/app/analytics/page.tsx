@@ -676,7 +676,6 @@ export default function AnalyticsPage() {
                             <AnimatePresence>
                                 {csvDropdownOpen && !csvExporting && (
                                     <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute top-full right-0 mt-1.5 bg-white border border-border-subtle rounded-lg shadow-xl overflow-hidden py-1 w-52 text-left">
-                                        <button onClick={() => { exportCSV(); setCsvDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-surface-muted transition-colors">Raw Data (all readings)</button>
                                         <button onClick={() => { exportCSV(1); setCsvDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-surface-muted transition-colors">1 Min Averaged</button>
                                         <button onClick={() => { exportCSV(5); setCsvDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-surface-muted transition-colors">5 Min Averaged</button>
                                         <button onClick={() => { exportCSV(15); setCsvDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-surface-muted transition-colors">15 Min Averaged</button>
